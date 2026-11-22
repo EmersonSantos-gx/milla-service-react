@@ -1,0 +1,195 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg-deep: #07040F;
+  --purple-main: #7C3AED;
+  --purple-light: #8B5CF6;
+  --cyan-main: #06B6D4;
+  --cyan-light: #22D3EE;
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  font-family: 'Outfit', system-ui, -apple-system, sans-serif;
+  font-weight: 500;
+  background-color: var(--bg-deep);
+  color: #F3F0FF;
+  overflow-x: hidden;
+  min-height: 100vh;
+}
+
+/* Camadas de fundo (Background 50% + Atmosfera Dark Tech Premium) */
+.bg-scene {
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  background:
+    radial-gradient(circle at 18% 12%, rgba(124, 58, 237, 0.28) 0%, transparent 45%),
+    radial-gradient(circle at 85% 24%, rgba(6, 182, 212, 0.20) 0%, transparent 42%),
+    radial-gradient(circle at 50% 88%, rgba(139, 92, 246, 0.18) 0%, transparent 50%),
+    linear-gradient(180deg, #07040F 0%, #0D071D 52%, #07040F 100%);
+}
+
+.bg-custom-image {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.bg-grid-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(139, 92, 246, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(34, 211, 238, 0.05) 1px, transparent 1px);
+  background-size: 36px 36px;
+  mask-image: radial-gradient(circle at 50% 35%, rgba(0, 0, 0, 0.85), transparent 80%);
+}
+
+/* Glassmorphism Cards & Bordas Luminosas */
+.glass-card {
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.28s ease,
+    box-shadow 0.28s ease,
+    background-color 0.28s ease;
+}
+
+.glass-card:hover {
+  background: rgba(255, 255, 255, 0.055);
+  border-color: rgba(34, 211, 238, 0.38);
+  box-shadow: 0 14px 38px rgba(124, 58, 237, 0.22), 0 0 18px rgba(6, 182, 212, 0.14);
+  transform: translateY(-2px);
+}
+
+/* Avatar com Glow / Bloom Animado (118px) */
+.avatar-ring-wrap {
+  position: relative;
+  width: 126px;
+  height: 126px;
+  padding: 4px;
+  border-radius: 9999px;
+  background: linear-gradient(135deg, #7C3AED 0%, #8B5CF6 45%, #22D3EE 100%);
+  box-shadow:
+    0 0 24px rgba(124, 58, 237, 0.65),
+    0 0 48px rgba(6, 182, 212, 0.35);
+  animation: avatarBloom 4.2s ease-in-out infinite;
+}
+
+@keyframes avatarBloom {
+  0%,
+  100% {
+    box-shadow: 0 0 22px rgba(124, 58, 237, 0.62), 0 0 44px rgba(6, 182, 212, 0.32);
+  }
+  50% {
+    box-shadow: 0 0 34px rgba(139, 92, 246, 0.85), 0 0 64px rgba(34, 211, 238, 0.50);
+  }
+}
+
+/* Botão Gradiente Tecnológico (CTA) */
+.btn-tech-gradient {
+  background: linear-gradient(135deg, #7C3AED 0%, #5B21B6 25%, #06B6D4 100%);
+  background-size: 180% 180%;
+  transition: background-position 0.35s ease, transform 0.2s ease, box-shadow 0.25s ease;
+}
+
+.btn-tech-gradient:hover {
+  background-position: right center;
+  transform: translateY(-1px);
+  box-shadow: 0 10px 28px rgba(6, 182, 212, 0.38), 0 0 22px rgba(124, 58, 237, 0.42);
+}
+
+.btn-tech-gradient:active {
+  transform: scale(0.985);
+}
+
+/* Seletores do Simulador */
+.selector-pill {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #CBD5E1;
+  transition: all 0.22s ease;
+}
+
+.selector-pill:hover {
+  border-color: rgba(139, 92, 246, 0.5);
+  color: #FFFFFF;
+}
+
+.selector-pill.is-active {
+  background: linear-gradient(135deg, rgba(124, 58, 237, 0.34), rgba(6, 182, 212, 0.26));
+  border-color: #22D3EE;
+  color: #FFFFFF;
+  box-shadow: 0 0 20px rgba(6, 182, 212, 0.26), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+
+/* FAB WhatsApp com Onda Pulsante */
+.fab-pulse::before,
+.fab-pulse::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  border: 2px solid rgba(34, 211, 238, 0.65);
+  animation: fabRipple 2.4s cubic-bezier(0.2, 0.6, 0.35, 1) infinite;
+  pointer-events: none;
+}
+
+.fab-pulse::after {
+  animation-delay: 1.2s;
+  border-color: rgba(139, 92, 246, 0.65);
+}
+
+@keyframes fabRipple {
+  0% {
+    transform: scale(1);
+    opacity: 0.85;
+  }
+  100% {
+    transform: scale(1.62);
+    opacity: 0;
+  }
+}
+
+/* Inputs Dark Glass */
+.dark-input {
+  background: rgba(7, 4, 15, 0.62);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #FFFFFF;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.dark-input::placeholder {
+  color: rgba(203, 213, 225, 0.45);
+}
+
+.dark-input:focus {
+  outline: none;
+  border-color: #22D3EE;
+  box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.18);
+}
+
+/* Text Gradient */
+.text-tech-gradient {
+  background: linear-gradient(90deg, #C4B5FD 0%, #8B5CF6 38%, #22D3EE 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
