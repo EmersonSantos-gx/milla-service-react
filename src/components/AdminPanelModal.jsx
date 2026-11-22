@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { DEFAULT_TC_IMAGE } from './StoreSection';
 
 const MILLA_WHATSAPP = '5582993643044';
+const UMA_HORA_MS = 60 * 60 * 1000;
 
 const formatBRL = (valor) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(valor || 0));
@@ -9,6 +10,11 @@ const formatBRL = (valor) =>
 const parseDecimal = (valor) => {
   const num = Number(String(valor ?? '').replace(',', '.').trim());
   return Number.isFinite(num) ? num : 0;
+};
+
+const passouUmaHora = (criadoEm) => {
+  if (!criadoEm) return false;
+  return Date.now() - new Date(criadoEm).getTime() >= UMA_HORA_MS;
 };
 
 const abrirWhatsAppPedido = (p) => {
@@ -29,6 +35,23 @@ const abrirWhatsAppPedido = (p) => {
   );
 };
 
+const abrirWhatsAppCompra = (c) => {
+  const digitos = String(c.whatsapp || '').replace(/\D/g, '');
+  const numero = digitos.startsWith('55') ? digitos : `55${digitos}`;
+  const texto = [
+    `Olá ${c.nome_completo}! Sobre sua venda de *${Number(c.quantidade).toLocaleString('pt-BR')} TC* (#${c.id}) na *Milla Service*:`,
+    `• Personagem de origem: ${c.personagem_origem}`,
+    `• Valor: ${formatBRL(c.valor_total)}`,
+    `• PIX: ${c.chave_pix}`,
+  ].join('\n');
+
+  window.open(
+    `https://wa.me/${numero}?text=${encodeURIComponent(texto)}`,
+    '_blank',
+    'noopener,noreferrer'
+  );
+};
+
 const STORAGE_KEY = 'milla_admin_token';
 
 export default function AdminPanelModal({ isOpen, onClose, onNotify, onDataChanged }) {
@@ -39,6 +62,8 @@ export default function AdminPanelModal({ isOpen, onClose, onNotify, onDataChang
   const [avaliacoes, setAvaliacoes] = useState([]);
   const [loja, setLoja] = useState(null);
   const [pedidos, setPedidos] = useState([]);
+  const [comprasTc, setComprasTc] = useState([]);
+  const [imagemAmpliada, setImagemAmpliada] = useState(null);
   const [loading, setLoading] = useState(false);
   const [salvandoLoja, setSalvandoLoja] = useState(false);
 
@@ -51,23 +76,25 @@ export default function AdminPanelModal({ isOpen, onClose, onNotify, onDataChang
     if (!tk) return;
     setLoading(true);
     try {
-      const [resAv, resLoja, resPed] = await Promise.all([
+      const [resAv, resLoja, resPed, resCompras] = await Promise.all([
         fetch('/api/avaliacoes?all=1', { headers: headersAdmin(tk) }),
         fetch('/api/loja'),
         fetch('/api/pedidos', { headers: headersAdmin(tk) }),
+        fetch('/api/compras-tc', { headers: headersAdmin(tk) }),
       ]);
 
-      if (resAv.status === 401 || resPed.status === 401) {
+      if (resAv.status === 401 || resPed.status === 401 || resCompras.status === 401) {
         setAutenticado(false);
         sessionStorage.removeItem(STORAGE_KEY);
         onNotify?.('Token administrativo inválido.');
         return;
       }
 
-      const [dataAv, dataLoja, dataPed] = await Promise.all([
+      const [dataAv, dataLoja, dataPed, dataCompras] = await Promise.all([
         resAv.json(),
         resLoja.json(),
         resPed.json(),
+        resCompras.ok ? resCompras.json() : [],
       ]);
 
       setAutenticado(true);
@@ -75,6 +102,7 @@ export default function AdminPanelModal({ isOpen, onClose, onNotify, onDataChang
       setAvaliacoes(Array.isArray(dataAv) ? dataAv : []);
       if (dataLoja && dataLoja.id) setLoja(dataLoja);
       setPedidos(Array.isArray(dataPed) ? dataPed : []);
+      setComprasTc(Array.isArray(dataCompras) ? dataCompras : []);
     } catch {
       onNotify?.('Erro ao carregar dados do painel admin.');
     } finally {
@@ -143,6 +171,7 @@ export default function AdminPanelModal({ isOpen, onClose, onNotify, onDataChang
     setSalvandoLoja(true);
     try {
       const precoNormalizado = parseDecimal(loja.preco_unitario);
+      const precoCompraNormalizado = parseDecimal(loja.preco_compra_unitario);
       const payload = {
         nome: loja.nome,
         descricao: loja.descricao,
@@ -153,6 +182,9 @@ export default function AdminPanelModal({ isOpen, onClose, onNotify, onDataChang
         ativo: Boolean(loja.ativo),
         pix_ativo: Boolean(loja.pix_ativo),
         cartao_ativo: Boolean(loja.cartao_ativo),
+        preco_compra_unitario: precoCompraNormalizado,
+        compra_ativo: Boolean(loja.compra_ativo),
+        personagem_recebimento: loja.personagem_recebimento || 'Modotank',
       };
 
       const res = await fetch('/api/loja', {
@@ -190,10 +222,94 @@ export default function AdminPanelModal({ isOpen, onClose, onNotify, onDataChang
     }
   };
 
+  const cancelarPedido = async (id) => {
+    const ok = window.confirm(`Cancelar o pedido #${id} por falta de pagamento (+1h)?`);
+    if (!ok) return;
+
+    try {
+      const res = await fetch('/api/pedidos', {
+        method: 'PATCH',
+        headers: headersAdmin(),
+        body: JSON.stringify({ id, status: 'cancelado' }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erro ao cancelar pedido.');
+
+      setPedidos((prev) => prev.map((p) => (p.id === id ? data : p)));
+      onNotify?.(`Pedido #${id} cancelado.`);
+    } catch (err) {
+      onNotify?.(err.message);
+    }
+  };
+
+  const cancelarPedidosExpirados = async () => {
+    const ok = window.confirm(
+      'Cancelar todos os pedidos pendentes que passaram de 1 hora sem pagamento?'
+    );
+    if (!ok) return;
+
+    try {
+      const res = await fetch('/api/pedidos', {
+        method: 'PATCH',
+        headers: headersAdmin(),
+        body: JSON.stringify({ acao: 'cancelar_expirados' }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erro ao cancelar pedidos expirados.');
+
+      const idsCancelados = new Set((data.cancelados || []).map((p) => p.id));
+      if (idsCancelados.size === 0) {
+        onNotify?.('Nenhum pedido pendente com mais de 1 hora encontrado.');
+        return;
+      }
+
+      setPedidos((prev) =>
+        prev.map((p) => (idsCancelados.has(p.id) ? { ...p, status: 'cancelado' } : p))
+      );
+      onNotify?.(`${idsCancelados.size} pedido(s) expirado(s) cancelado(s).`);
+    } catch (err) {
+      onNotify?.(err.message);
+    }
+  };
+
+  const atualizarStatusCompra = async (id, status) => {
+    try {
+      const res = await fetch('/api/compras-tc', {
+        method: 'PATCH',
+        headers: headersAdmin(),
+        body: JSON.stringify({ id, status }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erro ao atualizar compra de TC.');
+
+      setComprasTc((prev) => prev.map((c) => (c.id === id ? data : c)));
+      onNotify?.(
+        status === 'pago'
+          ? `Compra #${id} marcada como paga!`
+          : `Compra #${id} marcada como devolvida.`
+      );
+    } catch (err) {
+      onNotify?.(err.message);
+    }
+  };
+
+  const copiarTexto = async (texto, label) => {
+    try {
+      await navigator.clipboard.writeText(texto);
+      onNotify?.(`${label} copiado!`);
+    } catch {
+      onNotify?.('Não foi possível copiar.');
+    }
+  };
+
   const pendentes = avaliacoes.filter((a) => !a.aprovado);
   const aprovadas = avaliacoes.filter((a) => Boolean(a.aprovado));
   const listaAvaliacoes = filtroAvaliacoes === 'pendentes' ? pendentes : aprovadas;
   const precoPreview = parseDecimal(loja?.preco_unitario);
+  const precoCompraPreview = parseDecimal(loja?.preco_compra_unitario);
+  const pedidosExpirados = pedidos.filter(
+    (p) => p.status === 'pendente' && passouUmaHora(p.criado_em)
+  );
 
   return (
     <div
@@ -206,7 +322,9 @@ export default function AdminPanelModal({ isOpen, onClose, onNotify, onDataChang
         <div className="mb-4 flex items-center justify-between border-b border-white/10 pb-3">
           <div>
             <h3 className="text-base font-bold text-white">Painel Administrativo</h3>
-            <p className="text-xs text-slate-400">Avaliações, Loja de Tibia Coins e Pedidos</p>
+            <p className="text-xs text-slate-400">
+              Avaliações, Loja de Tibia Coins, Pedidos e Compras de TC
+            </p>
           </div>
 
           <div className="flex items-center gap-2">
@@ -254,7 +372,7 @@ export default function AdminPanelModal({ isOpen, onClose, onNotify, onDataChang
           </form>
         ) : (
           <>
-            <div className="mb-4 grid grid-cols-3 gap-2 rounded-2xl border border-white/10 bg-slate-950/60 p-1">
+            <div className="mb-4 grid grid-cols-2 sm:grid-cols-4 gap-2 rounded-2xl border border-white/10 bg-slate-950/60 p-1">
               <button
                 type="button"
                 onClick={() => setAba('avaliacoes')}
@@ -287,6 +405,17 @@ export default function AdminPanelModal({ isOpen, onClose, onNotify, onDataChang
                 }`}
               >
                 Pedidos ({pedidos.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setAba('compras_tc')}
+                className={`rounded-xl py-2 text-xs font-bold transition cursor-pointer ${
+                  aba === 'compras_tc'
+                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/30'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                Compras TC ({comprasTc.length})
               </button>
             </div>
 
@@ -341,7 +470,9 @@ export default function AdminPanelModal({ isOpen, onClose, onNotify, onDataChang
                           </span>
                         </div>
 
-                        <p className="mt-2 text-xs leading-relaxed text-slate-300">{item.descricao}</p>
+                        <p className="mt-2 text-xs leading-relaxed text-slate-300">
+                          {item.descricao}
+                        </p>
 
                         <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-white/5 pt-2.5">
                           <span className="text-[11px] text-slate-500">
@@ -405,9 +536,7 @@ export default function AdminPanelModal({ isOpen, onClose, onNotify, onDataChang
 
                   <div>
                     <div className="mb-1 flex items-center justify-between gap-2">
-                      <label className="text-xs font-semibold text-slate-300">
-                        URL da Imagem
-                      </label>
+                      <label className="text-xs font-semibold text-slate-300">URL da Imagem</label>
                       <button
                         type="button"
                         onClick={() => setLoja({ ...loja, imagem_url: DEFAULT_TC_IMAGE })}
@@ -440,7 +569,7 @@ export default function AdminPanelModal({ isOpen, onClose, onNotify, onDataChang
                 <div className="grid grid-cols-3 gap-2.5">
                   <div>
                     <label className="mb-1 block text-xs font-semibold text-slate-300">
-                      Valor por TC (R$)
+                      Venda / TC (R$)
                     </label>
                     <input
                       type="number"
@@ -487,6 +616,59 @@ export default function AdminPanelModal({ isOpen, onClose, onNotify, onDataChang
                   </div>
                 </div>
 
+                {/* Configuração da Compra de Tibia Coins */}
+                <div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/5 p-3.5 space-y-3">
+                  <span className="block text-xs font-bold uppercase tracking-wider text-emerald-300">
+                    Configuração — Compra de Tibia Coins
+                  </span>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="mb-1 block text-xs font-semibold text-slate-300">
+                        Valor Compra / TC (R$)
+                      </label>
+                      <input
+                        type="number"
+                        step="0.0001"
+                        min="0.0001"
+                        required
+                        value={loja.preco_compra_unitario ?? '0.1750'}
+                        onChange={(e) =>
+                          setLoja({ ...loja, preco_compra_unitario: e.target.value })
+                        }
+                        className="dark-input w-full rounded-xl px-3 py-2 text-sm"
+                      />
+                      <span className="mt-1 block text-[11px] text-emerald-300">
+                        250 TC = {formatBRL(precoCompraPreview * 250)}
+                      </span>
+                    </div>
+
+                    <div>
+                      <label className="mb-1 block text-xs font-semibold text-slate-300">
+                        Personagem que recebe (fixo p/ copiar)
+                      </label>
+                      <input
+                        required
+                        value={loja.personagem_recebimento ?? 'Modotank'}
+                        onChange={(e) =>
+                          setLoja({ ...loja, personagem_recebimento: e.target.value })
+                        }
+                        className="dark-input w-full rounded-xl px-3 py-2 text-sm"
+                      />
+                    </div>
+                  </div>
+
+                  <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-white/10 bg-slate-950/60 p-2.5 text-xs font-semibold text-slate-200">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(loja.compra_ativo)}
+                      onChange={(e) => setLoja({ ...loja, compra_ativo: e.target.checked })}
+                      className="h-4 w-4 accent-emerald-400"
+                    />
+                    Ativar aba de Compra de Tibia Coins na vitrine
+                  </label>
+                </div>
+
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
                   <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-white/10 bg-slate-950/60 p-3 text-xs font-semibold text-slate-200">
                     <input
@@ -531,66 +713,222 @@ export default function AdminPanelModal({ isOpen, onClose, onNotify, onDataChang
 
             {aba === 'pedidos' && (
               <div className="space-y-2.5">
+                {pedidosExpirados.length > 0 && (
+                  <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-rose-400/30 bg-rose-500/10 p-3 text-xs">
+                    <span className="text-rose-200">
+                      <i className="fa-solid fa-clock mr-1.5" />
+                      <strong>{pedidosExpirados.length}</strong> pedido(s) pendente(s) há mais de 1h
+                    </span>
+                    <button
+                      type="button"
+                      onClick={cancelarPedidosExpirados}
+                      className="rounded-lg border border-rose-400/40 bg-rose-500/20 px-3 py-1 font-bold text-rose-100 hover:bg-rose-500/30 cursor-pointer"
+                    >
+                      Cancelar expirados (+1h)
+                    </button>
+                  </div>
+                )}
+
                 {pedidos.length === 0 ? (
                   <p className="rounded-2xl border border-white/10 bg-slate-950/40 p-6 text-center text-xs text-slate-400">
                     Nenhum pedido registrado ainda.
                   </p>
                 ) : (
-                  pedidos.map((p) => (
+                  pedidos.map((p) => {
+                    const expirado = p.status === 'pendente' && passouUmaHora(p.criado_em);
+                    return (
+                      <div
+                        key={p.id}
+                        className="rounded-2xl border border-white/10 bg-slate-950/60 p-3.5 text-xs"
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div>
+                            <strong className="text-sm text-white">
+                              #{p.id} • {p.personagem}
+                            </strong>
+                            {p.servidor && (
+                              <span className="ml-2 text-cyan-300">({p.servidor})</span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            {expirado && (
+                              <span className="rounded-full bg-rose-500/15 px-2 py-0.5 text-[10px] font-semibold text-rose-300">
+                                +1h sem pagamento
+                              </span>
+                            )}
+                            <span
+                              className={`rounded-full px-2.5 py-0.5 font-bold uppercase ${
+                                p.status === 'pago'
+                                  ? 'bg-emerald-500/20 text-emerald-300'
+                                  : p.status === 'entregue'
+                                  ? 'bg-cyan-500/20 text-cyan-300'
+                                  : p.status === 'cancelado'
+                                  ? 'bg-rose-500/20 text-rose-300'
+                                  : 'bg-amber-500/20 text-amber-300'
+                              }`}
+                            >
+                              {p.status}
+                            </span>
+                          </div>
+                        </div>
+
+                        <p className="mt-1.5 text-slate-300">
+                          Cliente: <strong>{p.cliente_nome}</strong> • WhatsApp:{' '}
+                          <strong>{p.whatsapp}</strong>
+                        </p>
+
+                        <div className="mt-2 flex flex-wrap items-center justify-between gap-2 border-t border-white/5 pt-2">
+                          <span className="font-bold text-amber-300">
+                            {Number(p.quantidade).toLocaleString('pt-BR')} TC •{' '}
+                            {formatBRL(p.valor_total)} ({String(p.metodo_pagamento).toUpperCase()})
+                          </span>
+
+                          <div className="flex flex-wrap items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => abrirWhatsAppPedido(p)}
+                              className="rounded-lg border border-emerald-400/30 bg-emerald-500/15 px-2.5 py-1 font-semibold text-emerald-200 hover:bg-emerald-500/25 cursor-pointer"
+                            >
+                              <i className="fa-brands fa-whatsapp mr-1" />
+                              WhatsApp
+                            </button>
+
+                            {p.status === 'pago' && (
+                              <button
+                                type="button"
+                                onClick={() => marcarEntregue(p.id)}
+                                className="rounded-lg border border-cyan-400/30 bg-cyan-500/15 px-2.5 py-1 font-semibold text-cyan-200 hover:bg-cyan-500/25 cursor-pointer"
+                              >
+                                Marcar Entregue
+                              </button>
+                            )}
+
+                            {expirado && (
+                              <button
+                                type="button"
+                                onClick={() => cancelarPedido(p.id)}
+                                className="rounded-lg border border-rose-400/30 bg-rose-500/15 px-2.5 py-1 font-semibold text-rose-200 hover:bg-rose-500/25 cursor-pointer"
+                              >
+                                <i className="fa-solid fa-ban mr-1" />
+                                Cancelar (+1h)
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            )}
+
+            {aba === 'compras_tc' && (
+              <div className="space-y-3">
+                {comprasTc.length === 0 ? (
+                  <p className="rounded-2xl border border-white/10 bg-slate-950/40 p-6 text-center text-xs text-slate-400">
+                    Nenhuma solicitação de compra de Tibia Coins recebida ainda.
+                  </p>
+                ) : (
+                  comprasTc.map((c) => (
                     <div
-                      key={p.id}
-                      className="rounded-2xl border border-white/10 bg-slate-950/60 p-3.5 text-xs"
+                      key={c.id}
+                      className="rounded-2xl border border-white/10 bg-slate-950/60 p-3.5 text-xs space-y-2.5"
                     >
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <div>
-                          <strong className="text-sm text-white">#{p.id} • {p.personagem}</strong>
-                          {p.servidor && (
-                            <span className="ml-2 text-cyan-300">({p.servidor})</span>
-                          )}
+                          <strong className="text-sm text-white">
+                            #{c.id} • {c.personagem_origem}
+                          </strong>
+                          <span className="ml-2 text-slate-400">→ {c.personagem_destino}</span>
                         </div>
                         <span
                           className={`rounded-full px-2.5 py-0.5 font-bold uppercase ${
-                            p.status === 'pago'
+                            c.status === 'pago'
                               ? 'bg-emerald-500/20 text-emerald-300'
-                              : p.status === 'entregue'
-                              ? 'bg-cyan-500/20 text-cyan-300'
-                              : p.status === 'cancelado'
+                              : c.status === 'devolvido'
                               ? 'bg-rose-500/20 text-rose-300'
                               : 'bg-amber-500/20 text-amber-300'
                           }`}
                         >
-                          {p.status}
+                          {c.status}
                         </span>
                       </div>
 
-                      <p className="mt-1.5 text-slate-300">
-                        Cliente: <strong>{p.cliente_nome}</strong> • WhatsApp:{' '}
-                        <strong>{p.whatsapp}</strong>
-                      </p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-slate-300">
+                        <p>
+                          Cliente: <strong className="text-white">{c.nome_completo}</strong>
+                        </p>
+                        <p>
+                          WhatsApp: <strong className="text-white">{c.whatsapp}</strong>
+                        </p>
+                        <p className="sm:col-span-2 flex flex-wrap items-center gap-2">
+                          <span>
+                            Chave PIX: <strong className="text-cyan-300">{c.chave_pix}</strong>
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => copiarTexto(c.chave_pix, 'Chave PIX')}
+                            className="rounded-md border border-cyan-400/30 bg-cyan-500/15 px-2 py-0.5 text-[11px] font-semibold text-cyan-200 hover:bg-cyan-500/25 cursor-pointer"
+                          >
+                            <i className="fa-regular fa-copy mr-1" />
+                            Copiar PIX
+                          </button>
+                        </p>
+                      </div>
 
-                      <div className="mt-2 flex flex-wrap items-center justify-between gap-2 border-t border-white/5 pt-2">
-                        <span className="font-bold text-amber-300">
-                          {Number(p.quantidade).toLocaleString('pt-BR')} TC • {formatBRL(p.valor_total)}{' '}
-                          ({String(p.metodo_pagamento).toUpperCase()})
+                      {c.comprovante_base64 && (
+                        <div className="pt-1">
+                          <button
+                            type="button"
+                            onClick={() => setImagemAmpliada(c.comprovante_base64)}
+                            className="group relative overflow-hidden rounded-xl border border-white/10 bg-black/40 cursor-pointer"
+                          >
+                            <img
+                              src={c.comprovante_base64}
+                              alt={`Comprovante #${c.id}`}
+                              className="h-28 w-auto max-w-full object-contain transition group-hover:scale-105"
+                            />
+                            <span className="absolute bottom-1 right-1 rounded-md bg-black/75 px-2 py-0.5 text-[10px] text-cyan-300">
+                              <i className="fa-solid fa-magnifying-glass-plus mr-1" />
+                              Ampliar
+                            </span>
+                          </button>
+                        </div>
+                      )}
+
+                      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-white/5 pt-2.5">
+                        <span className="font-bold text-emerald-300">
+                          {Number(c.quantidade).toLocaleString('pt-BR')} TC • Pagar{' '}
+                          {formatBRL(c.valor_total)}
                         </span>
 
                         <div className="flex flex-wrap items-center gap-2">
                           <button
                             type="button"
-                            onClick={() => abrirWhatsAppPedido(p)}
+                            onClick={() => abrirWhatsAppCompra(c)}
                             className="rounded-lg border border-emerald-400/30 bg-emerald-500/15 px-2.5 py-1 font-semibold text-emerald-200 hover:bg-emerald-500/25 cursor-pointer"
                           >
                             <i className="fa-brands fa-whatsapp mr-1" />
                             WhatsApp
                           </button>
 
-                          {p.status === 'pago' && (
+                          {c.status !== 'pago' && (
                             <button
                               type="button"
-                              onClick={() => marcarEntregue(p.id)}
+                              onClick={() => atualizarStatusCompra(c.id, 'pago')}
                               className="rounded-lg border border-cyan-400/30 bg-cyan-500/15 px-2.5 py-1 font-semibold text-cyan-200 hover:bg-cyan-500/25 cursor-pointer"
                             >
-                              Marcar Entregue
+                              Marcar Pago
+                            </button>
+                          )}
+
+                          {c.status !== 'devolvido' && (
+                            <button
+                              type="button"
+                              onClick={() => atualizarStatusCompra(c.id, 'devolvido')}
+                              className="rounded-lg border border-rose-400/30 bg-rose-500/15 px-2.5 py-1 font-semibold text-rose-200 hover:bg-rose-500/25 cursor-pointer"
+                            >
+                              Devolvido
                             </button>
                           )}
                         </div>
@@ -603,6 +941,20 @@ export default function AdminPanelModal({ isOpen, onClose, onNotify, onDataChang
           </>
         )}
       </div>
+
+      {/* Lightbox para ampliar o comprovante */}
+      {imagemAmpliada && (
+        <div
+          onClick={() => setImagemAmpliada(null)}
+          className="fixed inset-0 z-[95] flex items-center justify-center bg-black/90 p-4 backdrop-blur-sm cursor-pointer"
+        >
+          <img
+            src={imagemAmpliada}
+            alt="Comprovante ampliado"
+            className="max-h-[90vh] max-w-[95vw] rounded-2xl border border-white/15 object-contain"
+          />
+        </div>
+      )}
     </div>
   );
 }

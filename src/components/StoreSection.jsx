@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import CheckoutModal from './CheckoutModal';
+import SellTcTab from './SellTcTab';
 
 export const DEFAULT_TC_IMAGE = '/tibia-coins.png';
 
@@ -8,6 +9,7 @@ const formatBRL = (valor) =>
 
 export default function StoreSection({ onNotify }) {
   const [loja, setLoja] = useState(null);
+  const [modoLoja, setModoLoja] = useState('venda');
   const [quantidade, setQuantidade] = useState(250);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [imgError, setImgError] = useState(false);
@@ -51,101 +53,144 @@ export default function StoreSection({ onNotify }) {
           Loja de Tibia Coins
         </h2>
         <span className="rounded-full border border-emerald-400/30 bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-300">
-          {semEstoque ? 'Esgotado' : `Estoque: ${maxDisponivel.toLocaleString('pt-BR')} TC`}
+          {modoLoja === 'venda'
+            ? semEstoque
+              ? 'Esgotado'
+              : `Estoque: ${maxDisponivel.toLocaleString('pt-BR')} TC`
+            : loja.compra_ativo
+            ? 'Compramos suas TC'
+            : 'Compra pausada'}
         </span>
       </div>
 
       <div className="glass-card rounded-3xl border border-cyan-400/25 p-5 text-left">
-        <div className="flex items-center gap-4">
-          <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-slate-900/80 p-1.5">
-            {!imgError ? (
-              <img
-                src={imagemSrc}
-                alt={loja.nome}
-                onError={() => setImgError(true)}
-                className="h-full w-full rounded-xl object-contain"
+        {/* Abas: Comprar TC (Venda da loja) x Vender TC (Compra pela loja) */}
+        <div className="mb-5 grid grid-cols-2 gap-2 rounded-2xl border border-white/10 bg-slate-950/60 p-1">
+          <button
+            type="button"
+            onClick={() => setModoLoja('venda')}
+            className={`rounded-xl py-2 text-xs font-bold transition cursor-pointer ${
+              modoLoja === 'venda'
+                ? 'border border-cyan-400/30 bg-cyan-500/20 text-cyan-300'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <i className="fa-solid fa-cart-shopping mr-1.5" />
+            Comprar TC
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setModoLoja('compra')}
+            className={`rounded-xl py-2 text-xs font-bold transition cursor-pointer ${
+              modoLoja === 'compra'
+                ? 'border border-emerald-400/30 bg-emerald-500/20 text-emerald-300'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <i className="fa-solid fa-hand-holding-dollar mr-1.5" />
+            Vender TC
+          </button>
+        </div>
+
+        {modoLoja === 'venda' ? (
+          <>
+            <div className="flex items-center gap-4">
+              <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-slate-900/80 p-1.5">
+                {!imgError ? (
+                  <img
+                    src={imagemSrc}
+                    alt={loja.nome}
+                    onError={() => setImgError(true)}
+                    className="h-full w-full rounded-xl object-contain"
+                  />
+                ) : (
+                  <i className="fa-solid fa-coins text-3xl text-amber-400" />
+                )}
+              </div>
+
+              <div className="flex-1">
+                <h3 className="text-base font-bold text-white">{loja.nome}</h3>
+                <p className="mt-1 text-xs leading-relaxed text-slate-300">{loja.descricao}</p>
+                <p className="mt-1.5 text-[11px] text-cyan-300">
+                  {formatBRL(precoUnitario * 250)} a cada 250 TC
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-5 rounded-2xl border border-white/10 bg-slate-950/60 p-4">
+              <div className="flex items-end justify-between">
+                <div>
+                  <span className="block text-[11px] uppercase tracking-wider text-slate-400">
+                    Quantidade
+                  </span>
+                  <span className="text-2xl font-extrabold text-amber-400">
+                    {semEstoque ? 0 : quantidade.toLocaleString('pt-BR')}{' '}
+                    <span className="text-sm font-bold text-amber-300/80">TC</span>
+                  </span>
+                </div>
+
+                <div className="text-right">
+                  <span className="block text-[11px] uppercase tracking-wider text-slate-400">
+                    Total
+                  </span>
+                  <span className="text-2xl font-extrabold text-white">
+                    {semEstoque ? 'R$ 0,00' : formatBRL(valorTotal)}
+                  </span>
+                </div>
+              </div>
+
+              <input
+                type="range"
+                min={minimo}
+                max={Math.max(minimo, maxDisponivel)}
+                step={25}
+                disabled={semEstoque}
+                value={quantidade}
+                onChange={(e) => setQuantidade(Number(e.target.value))}
+                className="mt-4 h-2 w-full cursor-pointer appearance-none rounded-lg bg-slate-800 accent-cyan-400 disabled:opacity-40"
               />
-            ) : (
-              <i className="fa-solid fa-coins text-3xl text-amber-400" />
-            )}
-          </div>
 
-          <div className="flex-1">
-            <h3 className="text-base font-bold text-white">{loja.nome}</h3>
-            <p className="mt-1 text-xs leading-relaxed text-slate-300">{loja.descricao}</p>
-            <p className="mt-1.5 text-[11px] text-cyan-300">
-              {formatBRL(precoUnitario * 250)} a cada 250 TC
-            </p>
-          </div>
-        </div>
+              <div className="mt-1.5 flex justify-between text-[11px] text-slate-400">
+                <span>{minimo} TC</span>
+                <span>{maxDisponivel.toLocaleString('pt-BR')} TC</span>
+              </div>
 
-        <div className="mt-5 rounded-2xl border border-white/10 bg-slate-950/60 p-4">
-          <div className="flex items-end justify-between">
-            <div>
-              <span className="block text-[11px] uppercase tracking-wider text-slate-400">
-                Quantidade
-              </span>
-              <span className="text-2xl font-extrabold text-amber-400">
-                {semEstoque ? 0 : quantidade.toLocaleString('pt-BR')}{' '}
-                <span className="text-sm font-bold text-amber-300/80">TC</span>
-              </span>
+              {atalhos.length > 0 && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {atalhos.map((valor) => (
+                    <button
+                      key={valor}
+                      type="button"
+                      onClick={() => setQuantidade(valor)}
+                      className={`rounded-xl border px-3 py-1 text-xs font-semibold transition cursor-pointer ${
+                        quantidade === valor
+                          ? 'border-cyan-400 bg-cyan-500/20 text-cyan-200'
+                          : 'border-white/10 bg-white/5 text-slate-300 hover:bg-white/10'
+                      }`}
+                    >
+                      {valor} TC
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
-            <div className="text-right">
-              <span className="block text-[11px] uppercase tracking-wider text-slate-400">
-                Total
-              </span>
-              <span className="text-2xl font-extrabold text-white">
-                {semEstoque ? 'R$ 0,00' : formatBRL(valorTotal)}
-              </span>
-            </div>
-          </div>
-
-          <input
-            type="range"
-            min={minimo}
-            max={Math.max(minimo, maxDisponivel)}
-            step={25}
-            disabled={semEstoque}
-            value={quantidade}
-            onChange={(e) => setQuantidade(Number(e.target.value))}
-            className="mt-4 h-2 w-full cursor-pointer appearance-none rounded-lg bg-slate-800 accent-cyan-400 disabled:opacity-40"
-          />
-
-          <div className="mt-1.5 flex justify-between text-[11px] text-slate-400">
-            <span>{minimo} TC</span>
-            <span>{maxDisponivel.toLocaleString('pt-BR')} TC</span>
-          </div>
-
-          {atalhos.length > 0 && (
-            <div className="mt-3 flex flex-wrap gap-2">
-              {atalhos.map((valor) => (
-                <button
-                  key={valor}
-                  type="button"
-                  onClick={() => setQuantidade(valor)}
-                  className={`rounded-xl border px-3 py-1 text-xs font-semibold transition cursor-pointer ${
-                    quantidade === valor
-                      ? 'border-cyan-400 bg-cyan-500/20 text-cyan-200'
-                      : 'border-white/10 bg-white/5 text-slate-300 hover:bg-white/10'
-                  }`}
-                >
-                  {valor} TC
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <button
-          type="button"
-          disabled={semEstoque}
-          onClick={() => setCheckoutOpen(true)}
-          className="btn-tech-gradient mt-4 w-full rounded-2xl py-3.5 text-sm font-bold text-white cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          <i className="fa-solid fa-cart-shopping mr-2" />
-          {semEstoque ? 'Sem estoque no momento' : `Comprar ${quantidade} TC • ${formatBRL(valorTotal)}`}
-        </button>
+            <button
+              type="button"
+              disabled={semEstoque}
+              onClick={() => setCheckoutOpen(true)}
+              className="btn-tech-gradient mt-4 w-full rounded-2xl py-3.5 text-sm font-bold text-white cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <i className="fa-solid fa-cart-shopping mr-2" />
+              {semEstoque
+                ? 'Sem estoque no momento'
+                : `Comprar ${quantidade} TC • ${formatBRL(valorTotal)}`}
+            </button>
+          </>
+        ) : (
+          <SellTcTab loja={loja} onNotify={onNotify} />
+        )}
       </div>
 
       <CheckoutModal
