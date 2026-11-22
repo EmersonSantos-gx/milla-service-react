@@ -3,6 +3,11 @@ import { useEffect, useState } from 'react';
 const formatBRL = (valor) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(valor || 0));
 
+const parseDecimal = (valor) => {
+  const num = Number(String(valor ?? '').replace(',', '.').trim());
+  return Number.isFinite(num) ? num : 0;
+};
+
 const STORAGE_KEY = 'milla_admin_token';
 
 export default function AdminPanelModal({ isOpen, onClose, onNotify, onDataChanged }) {
@@ -116,11 +121,12 @@ export default function AdminPanelModal({ isOpen, onClose, onNotify, onDataChang
     if (!loja) return;
     setSalvandoLoja(true);
     try {
+      const precoNormalizado = parseDecimal(loja.preco_unitario);
       const payload = {
         nome: loja.nome,
         descricao: loja.descricao,
         imagem_url: loja.imagem_url,
-        preco_unitario: Number(loja.preco_unitario),
+        preco_unitario: precoNormalizado,
         estoque: Number(loja.estoque),
         minimo_tc: Number(loja.minimo_tc),
         ativo: Boolean(loja.ativo),
@@ -166,6 +172,7 @@ export default function AdminPanelModal({ isOpen, onClose, onNotify, onDataChang
   const pendentes = avaliacoes.filter((a) => !a.aprovado);
   const aprovadas = avaliacoes.filter((a) => Boolean(a.aprovado));
   const listaAvaliacoes = filtroAvaliacoes === 'pendentes' ? pendentes : aprovadas;
+  const precoPreview = parseDecimal(loja?.preco_unitario);
 
   return (
     <div
@@ -418,7 +425,7 @@ export default function AdminPanelModal({ isOpen, onClose, onNotify, onDataChang
                       className="dark-input w-full rounded-xl px-3 py-2 text-sm"
                     />
                     <span className="mt-1 block text-[11px] text-cyan-300">
-                      250 TC = {formatBRL(Number(loja.preco_unitario || 0) * 250)}
+                      250 TC = {formatBRL(precoPreview * 250)}
                     </span>
                   </div>
 

@@ -47,7 +47,7 @@ export default function StoreSection({ onNotify }) {
       <div className="glass-card rounded-3xl border border-cyan-400/25 p-5 text-left">
         <div className="flex items-center gap-4">
           <img
-            src={loja.imagem_url || '/tibia-coins.png'}
+            src={loja.imagem_url || '/tibiacoins.png'}
             alt={loja.nome}
             className="h-20 w-20 rounded-2xl border border-white/10 bg-slate-900/80 object-cover p-1.5"
           />
