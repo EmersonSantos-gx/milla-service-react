@@ -293,7 +293,31 @@ export default function AdminPanelModal({ isOpen, onClose, onNotify, onDataChang
     }
   };
 
-  const atualizarStatusCompra = async (compra, status) => {
+ const atualizarStatusCompra = async (compra, status) => {
+    const digitos = String(compra.whatsapp || '').replace(/\D/g, '');
+    const numero = digitos.startsWith('55') ? digitos : `55${digitos}`;
+    const qtdFormatada = Number(compra.quantidade).toLocaleString('pt-BR');
+
+    const texto =
+      status === 'pago'
+        ? [
+            `✅ *Pagamento Realizado - Milla Service*`,
+            `Olá ${compra.nome_completo}! Sua venda de *${qtdFormatada} TC* (#${compra.id}) foi aprovada.`,
+            `• Valor enviado: *${formatBRL(compra.valor_total)}*`,
+            `• Chave PIX: ${compra.chave_pix}`,
+            `Segue abaixo o comprovante do PIX:`,
+          ].join('\n')
+        : [
+            `↩️ *Devolução de Tibia Coins - Milla Service*`,
+            `Olá ${compra.nome_completo}! Após análise da sua solicitação #${compra.id}, não foi possível concluir a compra.`,
+            `Já realizamos a devolução de *${qtdFormatada} TC* para o personagem *${compra.personagem_origem}*.`,
+            `Segue abaixo o comprovante da devolução:`,
+          ].join('\n');
+
+    // Abre antes do await para o navegador não bloquear o pop-up
+    const whatsappUrl = `https://wa.me/${numero}?text=${encodeURIComponent(texto)}`;
+    const popup = window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
+
     try {
       const res = await fetch('/api/compras-tc', {
         method: 'PATCH',
@@ -306,22 +330,13 @@ export default function AdminPanelModal({ isOpen, onClose, onNotify, onDataChang
       setComprasTc((prev) => prev.map((c) => (c.id === compra.id ? data : c)));
       onNotify?.(
         status === 'pago'
-          ? `Compra #${compra.id} marcada como paga! Abrindo WhatsApp...`
-          : `Compra #${compra.id} marcada como devolvida! Abrindo WhatsApp...`
+          ? `Compra #${compra.id} marcada como paga!`
+          : `Compra #${compra.id} marcada como devolvida!`
       );
 
-      abrirWhatsAppCompra(compra, status);
+      if (!popup) window.location.href = whatsappUrl;
     } catch (err) {
       onNotify?.(err.message);
-    }
-  };
-
-  const copiarTexto = async (texto, label) => {
-    try {
-      await navigator.clipboard.writeText(texto);
-      onNotify?.(`${label} copiado!`);
-    } catch {
-      onNotify?.('Não foi possível copiar.');
     }
   };
 
