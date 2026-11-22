@@ -15,33 +15,35 @@
   -webkit-tap-highlight-color: transparent;
 }
 
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
 html {
   background-color: var(--bg-deep);
-  overscroll-behavior-y: none;
 }
 
 body {
   font-family: 'Outfit', system-ui, -apple-system, sans-serif;
   font-weight: 500;
+  background: transparent;
   color: #F3F0FF;
-  overflow-x: clip;
-  min-height: 100vh;
-  overscroll-behavior-y: none;
 }
 
-/* Camadas de fundo travadas sem reajuste no overscroll */
+/* Camadas de fundo 100% travadas */
 .bg-scene,
 .bg-custom-image,
 .bg-grid-overlay {
   position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100lvh;
-  transform: translate3d(0, 0, 0);
-  backface-visibility: hidden;
-  pointer-events: none;
+  inset: 0;
   z-index: 0;
+  pointer-events: none;
 }
 
 .bg-scene {

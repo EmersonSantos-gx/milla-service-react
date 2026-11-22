@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { CONFIG } from './data/config';
 import BackgroundLayers from './components/BackgroundLayers';
 import ProfileHeader from './components/ProfileHeader';
@@ -23,6 +23,12 @@ export default function App() {
   const [toast, setToast] = useState({ message: '', visible: false });
   const [shareOpen, setShareOpen] = useState(false);
   const toastTimerRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    };
+  }, []);
 
   const showToast = useCallback((message) => {
     setToast({ message, visible: true });
@@ -53,7 +59,7 @@ export default function App() {
     <>
       <BackgroundLayers />
 
-      <main className="relative z-10 w-full px-4 pt-8 pb-28 sm:pt-12">
+      <main className="fixed inset-0 z-10 overflow-y-auto overflow-x-hidden overscroll-y-none scroll-smooth w-full px-4 pt-8 pb-28 sm:pt-12">
         <div className="mx-auto w-full max-w-[460px] space-y-6">
           <ProfileHeader />
           <QuickActions onNotify={showToast} />
