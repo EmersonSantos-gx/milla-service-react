@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react';
 import CheckoutModal from './CheckoutModal';
 
-export const DEFAULT_TC_IMAGE =
-  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
+export const DEFAULT_TC_IMAGE = '/tibia-coins.png';
 
 const formatBRL = (valor) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor);
@@ -38,9 +37,11 @@ export default function StoreSection({ onNotify }) {
   const atalhos = [250, 500, 1000, 2500].filter((v) => v >= minimo && v <= maxDisponivel);
 
   const imagemSrc =
-    imgError || !loja.imagem_url || loja.imagem_url === '/tibia-coins.png'
-      ? DEFAULT_TC_IMAGE
-      : loja.imagem_url;
+    loja.imagem_url && loja.imagem_url !== 'tibia-coins'
+      ? loja.imagem_url.startsWith('http') || loja.imagem_url.startsWith('/')
+        ? loja.imagem_url
+        : `/${loja.imagem_url}`
+      : DEFAULT_TC_IMAGE;
 
   return (
     <section className="mt-8">
@@ -56,12 +57,19 @@ export default function StoreSection({ onNotify }) {
 
       <div className="glass-card rounded-3xl border border-cyan-400/25 p-5 text-left">
         <div className="flex items-center gap-4">
-          <img
-            src={imagemSrc}
-            alt={loja.nome}
-            onError={() => setImgError(true)}
-            className="h-20 w-20 rounded-2xl border border-white/10 bg-slate-900/80 object-cover p-1.5"
-          />
+          <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-slate-900/80 p-1.5">
+            {!imgError ? (
+              <img
+                src={imagemSrc}
+                alt={loja.nome}
+                onError={() => setImgError(true)}
+                className="h-full w-full rounded-xl object-contain"
+              />
+            ) : (
+              <i className="fa-solid fa-coins text-3xl text-amber-400" />
+            )}
+          </div>
+
           <div className="flex-1">
             <h3 className="text-base font-bold text-white">{loja.nome}</h3>
             <p className="mt-1 text-xs leading-relaxed text-slate-300">{loja.descricao}</p>
