@@ -5,6 +5,7 @@ import ProfileHeader from './components/ProfileHeader';
 import QuickActions from './components/QuickActions';
 import CharacterSimulator from './components/CharacterSimulator';
 import ServicesGrid from './components/ServicesGrid';
+import StoreSection from './components/StoreSection';
 import AuthorityStrip from './components/AuthorityStrip';
 import ReviewsGrid from './components/ReviewsGrid';
 import AboutSection from './components/AboutSection';
@@ -12,7 +13,7 @@ import Footer from './components/Footer';
 import FloatingWhatsApp from './components/FloatingWhatsApp';
 import ShareModal from './components/ShareModal';
 import ReviewFormModal from './components/ReviewFormModal';
-import AdminReviewsModal from './components/AdminReviewsModal';
+import AdminPanelModal from './components/AdminPanelModal';
 import Toast from './components/Toast';
 
 function getShareUrl() {
@@ -28,6 +29,7 @@ export default function App() {
   const [shareOpen, setShareOpen] = useState(false);
   const [reviewFormOpen, setReviewFormOpen] = useState(false);
   const [reviewsRefreshKey, setReviewsRefreshKey] = useState(0);
+  const [storeRefreshKey, setStoreRefreshKey] = useState(0);
   const [adminOpen, setAdminOpen] = useState(
     () =>
       typeof window !== 'undefined' &&
@@ -46,7 +48,43 @@ export default function App() {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     toastTimerRef.current = setTimeout(() => {
       setToast((prev) => ({ ...prev, visible: false }));
-    }, 2800);
+    }, 3500);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const params = new URLSearchParams(window.location.search);
+    const statusPagamento = params.get('pagamento');
+    const pedidoId = params.get('pedido');
+
+    if (statusPagamento === 'sucesso') {
+      showToast(
+        `Pagamento aprovado${pedidoId ? ` (Pedido #${pedidoId})` : ''}! Entrega em andamento.`
+      );
+      setStoreRefreshKey((k) => k + 1);
+    } else if (statusPagamento === 'pendente') {
+      showToast(
+        `Pagamento pendente${pedidoId ? ` (Pedido #${pedidoId})` : ''}. Aguardando confirmação.`
+      );
+    } else if (statusPagamento === 'falha') {
+      showToast(
+        `Pagamento não concluído${pedidoId ? ` (Pedido #${pedidoId})` : ''}. Tente novamente.`
+      );
+    }
+
+    if (statusPagamento || pedidoId) {
+      params.delete('pagamento');
+      params.delete('pedido');
+      const novaQuery = params.toString();
+      const novaUrl = `${window.location.pathname}${novaQuery ? `?${novaQuery}` : ''}`;
+      window.history.replaceState({}, '', novaUrl);
+    }
+  }, [showToast]);
+
+  const handleDataChanged = useCallback(() => {
+    setReviewsRefreshKey((k) => k + 1);
+    setStoreRefreshKey((k) => k + 1);
   }, []);
 
   const handleShare = useCallback(async () => {
@@ -107,6 +145,7 @@ export default function App() {
             <>
               <CharacterSimulator onNotify={showToast} />
               <ServicesGrid />
+              <StoreSection key={storeRefreshKey} onNotify={showToast} />
               <AuthorityStrip />
             </>
           ) : (
@@ -139,11 +178,11 @@ export default function App() {
         onNotify={showToast}
       />
 
-      <AdminReviewsModal
+      <AdminPanelModal
         isOpen={adminOpen}
         onClose={() => setAdminOpen(false)}
         onNotify={showToast}
-        onUpdated={() => setReviewsRefreshKey((k) => k + 1)}
+        onDataChanged={handleDataChanged}
       />
 
       <Toast message={toast.message} visible={toast.visible} />

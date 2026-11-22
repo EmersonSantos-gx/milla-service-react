@@ -1,13 +1,21 @@
 import pool from './_db.js';
 
+function isAuthorized(req) {
+  const adminToken = process.env.ADMIN_TOKEN;
+  if (!adminToken) return false;
+  const authHeader = req.headers.authorization || '';
+  const bearerToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
+  const customToken = (req.headers['x-admin-token'] || '').trim();
+  return bearerToken === adminToken || customToken === adminToken;
+}
+
 export default async function handler(req, res) {
   if (req.method === 'GET') {
     try {
-      const isAdminReq = req.query.all === 'true';
+      const isAdminReq = req.query.all === 'true' || req.query.all === '1';
 
       if (isAdminReq) {
-        const auth = req.headers.authorization || '';
-        if (auth !== `Bearer ${process.env.ADMIN_TOKEN}`) {
+        if (!isAuthorized(req)) {
           return res.status(401).json({ error: 'Não autorizado.' });
         }
 
@@ -58,6 +66,7 @@ export default async function handler(req, res) {
 
       return res.status(201).json({ ok: true, message: 'Avaliação enviada para aprovação!' });
     } catch (err) {
+      console.error('ERRO AO SALVAR AVALIAÇÃO:', err);
       return res.status(500).json({ error: 'Erro ao salvar avaliação.' });
     }
   }
