@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { DEFAULT_TC_IMAGE } from './StoreSection';
 
 const formatBRL = (valor) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(valor || 0));
@@ -13,8 +14,8 @@ const STORAGE_KEY = 'milla_admin_token';
 export default function AdminPanelModal({ isOpen, onClose, onNotify, onDataChanged }) {
   const [token, setToken] = useState(() => sessionStorage.getItem(STORAGE_KEY) || '');
   const [autenticado, setAutenticado] = useState(false);
-  const [aba, setAba] = useState('avaliacoes'); // 'avaliacoes' | 'loja' | 'pedidos'
-  const [filtroAvaliacoes, setFiltroAvaliacoes] = useState('pendentes'); // 'pendentes' | 'aprovadas'
+  const [aba, setAba] = useState('avaliacoes');
+  const [filtroAvaliacoes, setFiltroAvaliacoes] = useState('pendentes');
   const [avaliacoes, setAvaliacoes] = useState([]);
   const [loja, setLoja] = useState(null);
   const [pedidos, setPedidos] = useState([]);
@@ -125,7 +126,7 @@ export default function AdminPanelModal({ isOpen, onClose, onNotify, onDataChang
       const payload = {
         nome: loja.nome,
         descricao: loja.descricao,
-        imagem_url: loja.imagem_url,
+        imagem_url: loja.imagem_url || DEFAULT_TC_IMAGE,
         preco_unitario: precoNormalizado,
         estoque: Number(loja.estoque),
         minimo_tc: Number(loja.minimo_tc),
@@ -233,7 +234,6 @@ export default function AdminPanelModal({ isOpen, onClose, onNotify, onDataChang
           </form>
         ) : (
           <>
-            {/* Abas principais */}
             <div className="mb-4 grid grid-cols-3 gap-2 rounded-2xl border border-white/10 bg-slate-950/60 p-1">
               <button
                 type="button"
@@ -270,7 +270,6 @@ export default function AdminPanelModal({ isOpen, onClose, onNotify, onDataChang
               </button>
             </div>
 
-            {/* ABA 1: AVALIAÇÕES */}
             {aba === 'avaliacoes' && (
               <div className="space-y-3">
                 <div className="flex gap-2">
@@ -369,7 +368,6 @@ export default function AdminPanelModal({ isOpen, onClose, onNotify, onDataChang
               </div>
             )}
 
-            {/* ABA 2: LOJA DE TC */}
             {aba === 'loja' && loja && (
               <form onSubmit={salvarLoja} className="space-y-3">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -386,9 +384,18 @@ export default function AdminPanelModal({ isOpen, onClose, onNotify, onDataChang
                   </div>
 
                   <div>
-                    <label className="mb-1 block text-xs font-semibold text-slate-300">
-                      URL da Imagem
-                    </label>
+                    <div className="mb-1 flex items-center justify-between gap-2">
+                      <label className="text-xs font-semibold text-slate-300">
+                        URL da Imagem
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setLoja({ ...loja, imagem_url: DEFAULT_TC_IMAGE })}
+                        className="text-[11px] font-semibold text-cyan-300 hover:underline cursor-pointer"
+                      >
+                        Usar imagem padrão
+                      </button>
+                    </div>
                     <input
                       required
                       value={loja.imagem_url || ''}
@@ -502,7 +509,6 @@ export default function AdminPanelModal({ isOpen, onClose, onNotify, onDataChang
               </form>
             )}
 
-            {/* ABA 3: PEDIDOS */}
             {aba === 'pedidos' && (
               <div className="space-y-2.5">
                 {pedidos.length === 0 ? (

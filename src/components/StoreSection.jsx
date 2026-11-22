@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react';
 import CheckoutModal from './CheckoutModal';
 
+export const DEFAULT_TC_IMAGE =
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
+
 const formatBRL = (valor) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor);
 
@@ -8,8 +11,10 @@ export default function StoreSection({ onNotify }) {
   const [loja, setLoja] = useState(null);
   const [quantidade, setQuantidade] = useState(250);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [imgError, setImgError] = useState(false);
 
   useEffect(() => {
+    setImgError(false);
     fetch('/api/loja')
       .then((res) => res.json())
       .then((data) => {
@@ -32,6 +37,11 @@ export default function StoreSection({ onNotify }) {
   const valorTotal = quantidade * precoUnitario;
   const atalhos = [250, 500, 1000, 2500].filter((v) => v >= minimo && v <= maxDisponivel);
 
+  const imagemSrc =
+    imgError || !loja.imagem_url || loja.imagem_url === '/tibia-coins.png'
+      ? DEFAULT_TC_IMAGE
+      : loja.imagem_url;
+
   return (
     <section className="mt-8">
       <div className="mb-3 flex items-center justify-between px-1">
@@ -47,8 +57,9 @@ export default function StoreSection({ onNotify }) {
       <div className="glass-card rounded-3xl border border-cyan-400/25 p-5 text-left">
         <div className="flex items-center gap-4">
           <img
-            src={loja.imagem_url || '/tibiacoins.png'}
+            src={imagemSrc}
             alt={loja.nome}
+            onError={() => setImgError(true)}
             className="h-20 w-20 rounded-2xl border border-white/10 bg-slate-900/80 object-cover p-1.5"
           />
           <div className="flex-1">
