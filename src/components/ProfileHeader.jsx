@@ -6,32 +6,36 @@ export default function ProfileHeader() {
 
   return (
     <header className="flex flex-col items-center text-center">
-      {/* Avatar 118px com Anel Glow / Bloom e Badge Online */}
+      {/* Avatar com moldura própria, brilho roxo pulsando e Badge Online */}
       <div className="relative mb-5">
-        <div className="avatar-ring-wrap flex items-center justify-center">
-          <div className="relative h-[118px] w-[118px] overflow-hidden rounded-full bg-night-900 flex items-center justify-center">
-            {!imgError && CONFIG.fotoUrl ? (
-              <img
-                src={CONFIG.fotoUrl}
-                alt={`Foto de perfil ${CONFIG.nome}`}
-                className="h-[118px] w-[118px] object-contain"
-                onError={() => setImgError(true)}
-              />
-            ) : (
-              <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-[#1C0F3A] via-[#120A26] to-[#082436] text-center">
-                <span className="text-3xl font-extrabold tracking-tight text-tech-gradient">
-                  MS
-                </span>
-                <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-cyan-300/80">
-                  Tibia
-                </span>
-              </div>
-            )}
-          </div>
+        <div className="relative h-[126px] w-[126px] flex items-center justify-center">
+          {/* Halo roxo/ciano pulsando atrás da imagem */}
+          <div
+            className="absolute inset-2 rounded-full animate-[avatarBloom_4.2s_ease-in-out_infinite]"
+            aria-hidden="true"
+          />
+
+          {!imgError && CONFIG.fotoUrl ? (
+            <img
+              src={CONFIG.fotoUrl}
+              alt={`Foto de perfil ${CONFIG.nome}`}
+              className="relative z-10 h-full w-full object-contain drop-shadow-[0_0_16px_rgba(124,58,237,0.65)]"
+              onError={() => setImgError(true)}
+            />
+          ) : (
+            <div className="relative z-10 h-[118px] w-[118px] rounded-full flex flex-col items-center justify-center bg-gradient-to-br from-[#1C0F3A] via-[#120A26] to-[#082436] text-center">
+              <span className="text-3xl font-extrabold tracking-tight text-tech-gradient">
+                MS
+              </span>
+              <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-cyan-300/80">
+                Tibia
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Badge Inferior Online */}
-        <div className="absolute -bottom-2.5 left-1/2 -translate-x-1/2 flex items-center gap-1.5 rounded-full border border-emerald-400/40 bg-[#0B0618]/95 px-3 py-0.5 shadow-lg backdrop-blur-md">
+        <div className="absolute -bottom-2.5 left-1/2 z-20 -translate-x-1/2 flex items-center gap-1.5 rounded-full border border-emerald-400/40 bg-[#0B0618]/95 px-3 py-0.5 shadow-lg backdrop-blur-md">
           <span className="relative flex h-2.5 w-2.5">
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-80" />
             <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-400 shadow-[0_0_8px_#34D399]" />
