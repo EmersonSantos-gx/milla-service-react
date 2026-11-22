@@ -1,9 +1,39 @@
+import { useEffect, useState } from 'react';
 import { CONFIG } from '../data/config';
 
-export default function ReviewsGrid() {
+export default function ReviewsGrid({ refreshKey, onOpenReviewForm }) {
+  const [reviews, setReviews] = useState(CONFIG.avaliacoes);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadReviews() {
+      try {
+        const res = await fetch('/api/avaliacoes');
+        if (!res.ok) return;
+        const data = await res.json();
+        if (active && Array.isArray(data) && data.length > 0) {
+          setReviews(data);
+        }
+      } catch {
+        // Mantém CONFIG.avaliacoes como fallback em ambiente local sem API
+      }
+    }
+
+    loadReviews();
+    return () => {
+      active = false;
+    };
+  }, [refreshKey]);
+
+  const averageRating =
+    reviews.length > 0
+      ? (reviews.reduce((sum, r) => sum + Number(r.estrelas || 5), 0) / reviews.length).toFixed(1)
+      : '5.0';
+
   return (
     <section aria-labelledby="avaliacoesTitle" className="mx-auto mt-10 w-full max-w-[680px]">
-      <div className="mb-5 flex flex-col items-center justify-between gap-2 text-center sm:flex-row sm:text-left px-1">
+      <div className="mb-5 flex flex-col items-center justify-between gap-3 text-center sm:flex-row sm:text-left px-1">
         <div>
           <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-cyan-400">
             Prova Social Verificada
@@ -13,23 +43,34 @@ export default function ReviewsGrid() {
           </h2>
         </div>
 
-        <div className="inline-flex items-center gap-2 rounded-full border border-amber-400/30 bg-amber-400/10 px-3.5 py-1.5 backdrop-blur-md">
-          <div className="flex items-center gap-0.5 text-xs text-amber-400" aria-hidden="true">
-            {Array.from({ length: 5 }).map((_, idx) => (
-              <i key={idx} className="fa-solid fa-star" />
-            ))}
+        <div className="flex flex-wrap items-center justify-center gap-2">
+          <div className="inline-flex items-center gap-2 rounded-full border border-amber-400/30 bg-amber-400/10 px-3.5 py-1.5 backdrop-blur-md">
+            <div className="flex items-center gap-0.5 text-xs text-amber-400" aria-hidden="true">
+              {Array.from({ length: 5 }).map((_, idx) => (
+                <i key={idx} className="fa-solid fa-star" />
+              ))}
+            </div>
+            <span className="text-xs font-bold text-amber-200">
+              {averageRating} • {reviews.length} avaliações
+            </span>
           </div>
-          <span className="text-xs font-bold text-amber-200">
-            5.0 • {CONFIG.avaliacoes.length} avaliações
-          </span>
+
+          <button
+            type="button"
+            onClick={onOpenReviewForm}
+            className="inline-flex items-center gap-1.5 rounded-full border border-cyan-400/35 bg-cyan-500/15 px-3.5 py-1.5 text-xs font-bold text-cyan-200 transition hover:bg-cyan-500/25 cursor-pointer"
+          >
+            <i className="fa-solid fa-pen-to-square" />
+            <span>Avaliar</span>
+          </button>
         </div>
       </div>
 
-      {/* Bento Grid 2x3 */}
+      {/* Bento Grid 2 colunas */}
       <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
-        {CONFIG.avaliacoes.map((rev, index) => (
+        {reviews.map((rev, index) => (
           <article
-            key={`${rev.nome}-${index}`}
+            key={rev.id ?? `${rev.nome}-${index}`}
             className="glass-card flex flex-col justify-between rounded-2xl p-4 text-left"
           >
             <div>

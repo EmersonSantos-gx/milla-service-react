@@ -11,6 +11,8 @@ import AboutSection from './components/AboutSection';
 import Footer from './components/Footer';
 import FloatingWhatsApp from './components/FloatingWhatsApp';
 import ShareModal from './components/ShareModal';
+import ReviewFormModal from './components/ReviewFormModal';
+import AdminReviewsModal from './components/AdminReviewsModal';
 import Toast from './components/Toast';
 
 function getShareUrl() {
@@ -24,6 +26,13 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('servicos');
   const [toast, setToast] = useState({ message: '', visible: false });
   const [shareOpen, setShareOpen] = useState(false);
+  const [reviewFormOpen, setReviewFormOpen] = useState(false);
+  const [reviewsRefreshKey, setReviewsRefreshKey] = useState(0);
+  const [adminOpen, setAdminOpen] = useState(
+    () =>
+      typeof window !== 'undefined' &&
+      new URLSearchParams(window.location.search).get('admin') === '1'
+  );
   const toastTimerRef = useRef(null);
 
   useEffect(() => {
@@ -105,7 +114,13 @@ export default function App() {
           )}
         </div>
 
-        {activeTab === 'servicos' && <ReviewsGrid />}
+        {activeTab === 'servicos' && (
+          <ReviewsGrid
+            refreshKey={reviewsRefreshKey}
+            onOpenReviewForm={() => setReviewFormOpen(true)}
+          />
+        )}
+
         <Footer onShare={handleShare} />
       </main>
 
@@ -116,6 +131,19 @@ export default function App() {
         shareUrl={getShareUrl()}
         onClose={() => setShareOpen(false)}
         onNotify={showToast}
+      />
+
+      <ReviewFormModal
+        isOpen={reviewFormOpen}
+        onClose={() => setReviewFormOpen(false)}
+        onNotify={showToast}
+      />
+
+      <AdminReviewsModal
+        isOpen={adminOpen}
+        onClose={() => setAdminOpen(false)}
+        onNotify={showToast}
+        onUpdated={() => setReviewsRefreshKey((k) => k + 1)}
       />
 
       <Toast message={toast.message} visible={toast.visible} />
