@@ -6,6 +6,7 @@ import QuickActions from './components/QuickActions';
 import CharacterSimulator from './components/CharacterSimulator';
 import ServicesGrid from './components/ServicesGrid';
 import StoreSection from './components/StoreSection';
+import FaqSection from './components/FaqSection';
 import AuthorityStrip from './components/AuthorityStrip';
 import ReviewsGrid from './components/ReviewsGrid';
 import AboutSection from './components/AboutSection';
@@ -15,6 +16,7 @@ import ShareModal from './components/ShareModal';
 import ReviewFormModal from './components/ReviewFormModal';
 import AdminPanelModal from './components/AdminPanelModal';
 import Toast from './components/Toast';
+import SocialProofToast from './components/SocialProofToast';
 
 function getShareUrl() {
   if (typeof window !== 'undefined' && window.location.href?.startsWith('http')) {
