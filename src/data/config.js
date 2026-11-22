@@ -110,6 +110,32 @@ export const CONFIG = {
       estrelas: 5,
       descricao:
         'Já é o terceiro serviço que contrato. Pontualidade impecável e confiança total.',
+
+      sobre: {
+      titulo: 'Sobre a Milla',
+      subtitulo: 'Experiência, transparência e segurança no Tibia',
+      bio: 'Atuo com services no Tibia focada em entregar cada etapa com organização, pontualidade e total respeito à sua conta. Todo o processo é combinado antes de começar, com atualizações constantes direto no WhatsApp.',
+      destaques: [
+      {
+        icone: 'fa-solid fa-shield-halved',
+        cor: 'text-cyan-300',
+        titulo: 'Conta Protegida',
+        texto: 'Procedimento seguro e combinado previamente em cada serviço.',
+      },
+      {
+        icone: 'fa-solid fa-clock',
+        cor: 'text-violet-300',
+        titulo: 'Pontualidade',
+        texto: 'Prazos claros e acompanhamento passo a passo até a entrega.',
+      },
+      {
+        icone: 'fa-solid fa-comments',
+        cor: 'text-cyan-300',
+        titulo: 'Atendimento Direto',
+        texto: 'Sem intermediários: você fala diretamente comigo no WhatsApp.',
+      },
+    ],
+  },
     },
   ],
 };

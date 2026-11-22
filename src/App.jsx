@@ -7,6 +7,7 @@ import CharacterSimulator from './components/CharacterSimulator';
 import ServicesGrid from './components/ServicesGrid';
 import AuthorityStrip from './components/AuthorityStrip';
 import ReviewsGrid from './components/ReviewsGrid';
+import AboutSection from './components/AboutSection';
 import Footer from './components/Footer';
 import FloatingWhatsApp from './components/FloatingWhatsApp';
 import ShareModal from './components/ShareModal';
@@ -20,6 +21,7 @@ function getShareUrl() {
 }
 
 export default function App() {
+  const [activeTab, setActiveTab] = useState('servicos');
   const [toast, setToast] = useState({ message: '', visible: false });
   const [shareOpen, setShareOpen] = useState(false);
   const toastTimerRef = useRef(null);
@@ -63,12 +65,47 @@ export default function App() {
         <div className="mx-auto w-full max-w-[460px] space-y-6">
           <ProfileHeader />
           <QuickActions onNotify={showToast} />
-          <CharacterSimulator onNotify={showToast} />
-          <ServicesGrid />
-          <AuthorityStrip />
+
+          {/* Navegação por Abas */}
+          <nav
+            aria-label="Navegação principal"
+            className="glass-card grid grid-cols-2 gap-2 rounded-2xl p-1.5"
+          >
+            <button
+              type="button"
+              onClick={() => setActiveTab('servicos')}
+              className={`selector-pill flex items-center justify-center gap-2 rounded-xl py-2.5 text-xs font-bold cursor-pointer sm:text-sm ${
+                activeTab === 'servicos' ? 'is-active' : 'border-transparent'
+              }`}
+            >
+              <i className="fa-solid fa-wand-magic-sparkles text-cyan-300" />
+              <span>Serviços</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('sobre')}
+              className={`selector-pill flex items-center justify-center gap-2 rounded-xl py-2.5 text-xs font-bold cursor-pointer sm:text-sm ${
+                activeTab === 'sobre' ? 'is-active' : 'border-transparent'
+              }`}
+            >
+              <i className="fa-solid fa-user text-violet-300" />
+              <span>Sobre Mim</span>
+            </button>
+          </nav>
+
+          {activeTab === 'servicos' ? (
+            <>
+              <CharacterSimulator onNotify={showToast} />
+              <ServicesGrid />
+              <AuthorityStrip />
+            </>
+          ) : (
+            <AboutSection />
+          )}
         </div>
 
-        <ReviewsGrid />
+        {activeTab === 'servicos' && <ReviewsGrid />}
         <Footer onShare={handleShare} />
       </main>
 
