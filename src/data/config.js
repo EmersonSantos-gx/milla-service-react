@@ -8,7 +8,7 @@ export const CONFIG = {
   whatsappExibicao: '(82) 9 9364-3044',
   telefone: '+5582993643044',
   instagram: 'https://instagram.com/@',
-  fotoUrl: `${BASE}assets/avatar.png`,
+  fotoUrl: `${BASE}assets/perfil.png`,
   backgroundUrl: `${BASE}assets/background1.png`,
   devLogoUrl: `${BASE}assets/gxdev-logo.png`,
   devSiteUrl: 'https://www.gxdev.space/',
