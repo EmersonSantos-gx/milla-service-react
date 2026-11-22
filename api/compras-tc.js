@@ -93,22 +93,49 @@ export default async function handler(req, res) {
   if (req.method === 'PATCH') {
     if (!isAdmin(req)) return res.status(401).json({ error: 'Não autorizado.' });
 
+    const client = await pool.connect();
     try {
       const { id, status } = req.body || {};
       if (!id || !['pendente', 'pago', 'devolvido'].includes(status)) {
         return res.status(400).json({ error: 'Dados inválidos.' });
       }
 
-      const { rows } = await pool.query(
+      await client.query('BEGIN');
+
+      const { rows: atuais } = await client.query(
+        'SELECT * FROM compras_tc WHERE id = $1 FOR UPDATE',
+        [id]
+      );
+      const compraAtual = atuais[0];
+      if (!compraAtual) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ error: 'Solicitação não encontrada.' });
+      }
+
+      const { rows: atualizadas } = await client.query(
         'UPDATE compras_tc SET status = $1 WHERE id = $2 RETURNING *',
         [status, id]
       );
 
-      if (!rows[0]) return res.status(404).json({ error: 'Solicitação não encontrada.' });
-      return res.status(200).json(rows[0]);
+      let novoEstoque = null;
+
+      // Soma no estoque somente na transição para "pago"
+      if (compraAtual.status !== 'pago' && status === 'pago') {
+        const { rows: lojaRows } = await client.query(
+          'UPDATE loja_tc SET estoque = estoque + $1, atualizado_em = NOW() WHERE id = 1 RETURNING estoque',
+          [Number(compraAtual.quantidade)]
+        );
+        novoEstoque = lojaRows[0]?.estoque ?? null;
+      }
+
+      await client.query('COMMIT');
+      return res.status(200).json({ ...atualizadas[0], novo_estoque: novoEstoque });
     } catch (err) {
+      await client.query('ROLLBACK');
       console.error('Erro PATCH /api/compras-tc:', err);
       return res.status(500).json({ error: 'Erro ao atualizar status.' });
+    } finally {
+      client.release();
     }
   }
 
