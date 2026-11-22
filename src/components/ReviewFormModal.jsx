@@ -11,10 +11,55 @@ export default function ReviewFormModal({ isOpen, onClose, onNotify }) {
     website: '', // honeypot invisível
   });
   const [loading, setLoading] = useState(false);
+  const [buscandoChar, setBuscandoChar] = useState(false);
+  const [charStatus, setCharStatus] = useState(null); // { tipo: 'ok' | 'erro', texto: string }
 
   if (!isOpen) return null;
 
   const update = (field, value) => setForm((prev) => ({ ...prev, [field]: value }));
+
+  const buscarPersonagem = async () => {
+    const nomeLimpo = form.personagem.trim();
+    if (!nomeLimpo) {
+      setCharStatus({ tipo: 'erro', texto: 'Digite o nome do personagem primeiro.' });
+      return;
+    }
+
+    setBuscandoChar(true);
+    setCharStatus(null);
+
+    try {
+      const res = await fetch(`/api/tibia?name=${encodeURIComponent(nomeLimpo)}`);
+      const char = await res.json();
+
+      if (!res.ok || !char.name) {
+        setCharStatus({
+          tipo: 'erro',
+          texto: char.error || 'Personagem não encontrado. Preencha servidor e level manualmente.',
+        });
+        return;
+      }
+
+      setForm((prev) => ({
+        ...prev,
+        personagem: char.name,
+        servidor: char.world || prev.servidor,
+        level: char.level ? String(char.level) : prev.level,
+      }));
+
+      setCharStatus({
+        tipo: 'ok',
+        texto: `${char.vocation} • Lv ${char.level} • ${char.world}`,
+      });
+    } catch {
+      setCharStatus({
+        tipo: 'erro',
+        texto: 'Não foi possível consultar a TibiaData agora. Preencha manualmente.',
+      });
+    } finally {
+      setBuscandoChar(false);
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -30,6 +75,7 @@ export default function ReviewFormModal({ isOpen, onClose, onNotify }) {
 
       onNotify('Avaliação enviada! Assim que aprovada, aparecerá no site.');
       setForm({ nome: '', personagem: '', servidor: '', level: '', estrelas: 5, descricao: '', website: '' });
+      setCharStatus(null);
       onClose();
     } catch (err) {
       onNotify(err.message);
@@ -68,21 +114,60 @@ export default function ReviewFormModal({ isOpen, onClose, onNotify }) {
             autoComplete="off"
           />
 
-          <div className="grid grid-cols-2 gap-2.5">
-            <input
-              required
-              placeholder="Seu nome"
-              value={form.nome}
-              onChange={(e) => update('nome', e.target.value)}
-              className="dark-input w-full rounded-xl px-3 py-2.5 text-sm"
-            />
-            <input
-              required
-              placeholder="Personagem"
-              value={form.personagem}
-              onChange={(e) => update('personagem', e.target.value)}
-              className="dark-input w-full rounded-xl px-3 py-2.5 text-sm"
-            />
+          <input
+            required
+            placeholder="Seu nome"
+            value={form.nome}
+            onChange={(e) => update('nome', e.target.value)}
+            className="dark-input w-full rounded-xl px-3 py-2.5 text-sm"
+          />
+
+          <div>
+            <div className="flex gap-2">
+              <input
+                required
+                placeholder="Personagem (Ex.: Modotank)"
+                value={form.personagem}
+                onChange={(e) => {
+                  update('personagem', e.target.value);
+                  if (charStatus) setCharStatus(null);
+                }}
+                className="dark-input flex-1 rounded-xl px-3 py-2.5 text-sm"
+              />
+              <button
+                type="button"
+                onClick={buscarPersonagem}
+                disabled={buscandoChar}
+                title="Buscar dados na TibiaData"
+                className="flex items-center gap-1.5 rounded-xl border border-cyan-400/30 bg-cyan-500/15 px-3.5 py-2.5 text-xs font-semibold text-cyan-300 hover:bg-cyan-500/25 active:scale-95 transition cursor-pointer disabled:opacity-50"
+              >
+                <i
+                  className={
+                    buscandoChar
+                      ? 'fa-solid fa-spinner fa-spin'
+                      : 'fa-solid fa-magnifying-glass'
+                  }
+                />
+                <span>{buscandoChar ? '...' : 'Buscar'}</span>
+              </button>
+            </div>
+
+            {charStatus && (
+              <p
+                className={`mt-1.5 flex items-center gap-1.5 text-xs ${
+                  charStatus.tipo === 'ok' ? 'text-emerald-400' : 'text-amber-400'
+                }`}
+              >
+                <i
+                  className={
+                    charStatus.tipo === 'ok'
+                      ? 'fa-solid fa-circle-check'
+                      : 'fa-solid fa-triangle-exclamation'
+                  }
+                />
+                <span>{charStatus.texto}</span>
+              </p>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-2.5">
