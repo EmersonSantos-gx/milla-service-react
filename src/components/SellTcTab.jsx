@@ -40,7 +40,7 @@ export default function SellTcTab({ loja, onNotify }) {
   const [enviando, setEnviando] = useState(false);
 
   const precoUnitario = Number(loja?.preco_compra_unitario || 0);
-  const personagemDestino = loja?.personagem_recebimento || 'Modotank';
+  const personagemDestino = loja?.personagem_recebimento || 'Aba em desenvolvimento'; // INFORMAR O NOME DO PERSONAGEM QUE VAI RECEBER AS TIBIA COINS
   const valorReceber = Number(quantidade || 0) * precoUnitario;
 
   const copiarPersonagem = async () => {
