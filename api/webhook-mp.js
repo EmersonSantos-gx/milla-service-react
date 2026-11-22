@@ -7,6 +7,44 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false },
 });
 
+async function notificarWhatsAppAdmin(pedido) {
+  const webhookUrl = process.env.WHATSAPP_NOTIFY_URL;
+  const apiKey = process.env.WHATSAPP_API_KEY;
+  const destino = process.env.ADMIN_WHATSAPP || '5582993643044';
+
+  const texto = [
+    `✅ *Pagamento Aprovado - Loja TC*`,
+    `*Pedido:* #${pedido.id}`,
+    `*Personagem:* ${pedido.personagem}${pedido.servidor ? ` (${pedido.servidor})` : ''}`,
+    `*Quantidade:* ${Number(pedido.quantidade).toLocaleString('pt-BR')} TC`,
+    `*Valor:* R$ ${Number(pedido.valor_total).toFixed(2).replace('.', ',')}`,
+    `*Método:* ${String(pedido.metodo_pagamento || '').toUpperCase()}`,
+    `*Cliente:* ${pedido.cliente_nome} (${pedido.whatsapp})`,
+  ].join('\n');
+
+  if (!webhookUrl) {
+    console.log('WHATSAPP_NOTIFY_URL não configurado. Resumo do pagamento aprovado:\n', texto);
+    return;
+  }
+
+  try {
+    await fetch(webhookUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(apiKey ? { Authorization: `Bearer ${apiKey}`, apikey: apiKey } : {}),
+      },
+      body: JSON.stringify({
+        number: destino,
+        text: texto,
+        message: texto,
+      }),
+    });
+  } catch (err) {
+    console.error('Falha ao enviar notificação WhatsApp:', err);
+  }
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST' && req.method !== 'GET') {
     return res.status(405).json({ error: 'Método não permitido.' });
@@ -52,6 +90,8 @@ export default async function handler(req, res) {
       return res.status(200).json({ received: true, info: 'Sem external_reference válido.' });
     }
 
+    let pedidoRecemAprovado = null;
+
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
@@ -84,6 +124,11 @@ export default async function handler(req, res) {
              WHERE id = $2`,
             [String(payment.preference_id || paymentId), pedidoId]
           );
+
+          pedidoRecemAprovado = {
+            ...pedido,
+            status: 'pago',
+          };
         }
       } else if (statusMp === 'cancelled' || statusMp === 'rejected') {
         if (pedido.status === 'pendente') {
@@ -100,6 +145,10 @@ export default async function handler(req, res) {
       throw dbErr;
     } finally {
       client.release();
+    }
+
+    if (pedidoRecemAprovado) {
+      await notificarWhatsAppAdmin(pedidoRecemAprovado);
     }
 
     return res.status(200).json({ received: true, pedidoId, statusMp });

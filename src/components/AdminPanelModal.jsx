@@ -1,12 +1,32 @@
 import { useEffect, useState } from 'react';
 import { DEFAULT_TC_IMAGE } from './StoreSection';
 
+const MILLA_WHATSAPP = '5582993643044';
+
 const formatBRL = (valor) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(valor || 0));
 
 const parseDecimal = (valor) => {
   const num = Number(String(valor ?? '').replace(',', '.').trim());
   return Number.isFinite(num) ? num : 0;
+};
+
+const abrirWhatsAppPedido = (p) => {
+  const texto = [
+    `✅ *Pagamento Aprovado - Milla Service*`,
+    `*Pedido:* #${p.id}`,
+    `*Personagem:* ${p.personagem}${p.servidor ? ` (${p.servidor})` : ''}`,
+    `*Quantidade:* ${Number(p.quantidade).toLocaleString('pt-BR')} TC`,
+    `*Valor:* ${formatBRL(p.valor_total)}`,
+    `*Método:* ${String(p.metodo_pagamento || '').toUpperCase()}`,
+    `*Cliente:* ${p.cliente_nome} (${p.whatsapp})`,
+  ].join('\n');
+
+  window.open(
+    `https://wa.me/${MILLA_WHATSAPP}?text=${encodeURIComponent(texto)}`,
+    '_blank',
+    'noopener,noreferrer'
+  );
 };
 
 const STORAGE_KEY = 'milla_admin_token';
@@ -548,21 +568,32 @@ export default function AdminPanelModal({ isOpen, onClose, onNotify, onDataChang
                         <strong>{p.whatsapp}</strong>
                       </p>
 
-                      <div className="mt-2 flex items-center justify-between border-t border-white/5 pt-2">
+                      <div className="mt-2 flex flex-wrap items-center justify-between gap-2 border-t border-white/5 pt-2">
                         <span className="font-bold text-amber-300">
                           {Number(p.quantidade).toLocaleString('pt-BR')} TC • {formatBRL(p.valor_total)}{' '}
                           ({String(p.metodo_pagamento).toUpperCase()})
                         </span>
 
-                        {p.status === 'pago' && (
+                        <div className="flex flex-wrap items-center gap-2">
                           <button
                             type="button"
-                            onClick={() => marcarEntregue(p.id)}
-                            className="rounded-lg border border-cyan-400/30 bg-cyan-500/15 px-2.5 py-1 font-semibold text-cyan-200 hover:bg-cyan-500/25 cursor-pointer"
+                            onClick={() => abrirWhatsAppPedido(p)}
+                            className="rounded-lg border border-emerald-400/30 bg-emerald-500/15 px-2.5 py-1 font-semibold text-emerald-200 hover:bg-emerald-500/25 cursor-pointer"
                           >
-                            Marcar Entregue
+                            <i className="fa-brands fa-whatsapp mr-1" />
+                            WhatsApp
                           </button>
-                        )}
+
+                          {p.status === 'pago' && (
+                            <button
+                              type="button"
+                              onClick={() => marcarEntregue(p.id)}
+                              className="rounded-lg border border-cyan-400/30 bg-cyan-500/15 px-2.5 py-1 font-semibold text-cyan-200 hover:bg-cyan-500/25 cursor-pointer"
+                            >
+                              Marcar Entregue
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </div>
                   ))
