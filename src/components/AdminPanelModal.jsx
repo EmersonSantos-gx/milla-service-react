@@ -35,15 +35,36 @@ const abrirWhatsAppPedido = (p) => {
   );
 };
 
-const abrirWhatsAppCompra = (c) => {
+const abrirWhatsAppCompra = (c, tipo = 'geral') => {
   const digitos = String(c.whatsapp || '').replace(/\D/g, '');
   const numero = digitos.startsWith('55') ? digitos : `55${digitos}`;
-  const texto = [
-    `Olá ${c.nome_completo}! Sobre sua venda de *${Number(c.quantidade).toLocaleString('pt-BR')} TC* (#${c.id}) na *Milla Service*:`,
-    `• Personagem de origem: ${c.personagem_origem}`,
-    `• Valor: ${formatBRL(c.valor_total)}`,
-    `• PIX: ${c.chave_pix}`,
-  ].join('\n');
+  const qtdFormatada = Number(c.quantidade).toLocaleString('pt-BR');
+
+  let texto = '';
+
+  if (tipo === 'pago') {
+    texto = [
+      `✅ *Pagamento Realizado - Milla Service*`,
+      `Olá ${c.nome_completo}! Sua venda de *${qtdFormatada} TC* (#${c.id}) foi aprovada.`,
+      `• Valor enviado: *${formatBRL(c.valor_total)}*`,
+      `• Chave PIX: ${c.chave_pix}`,
+      `Segue abaixo o comprovante do PIX:`,
+    ].join('\n');
+  } else if (tipo === 'devolvido') {
+    texto = [
+      `↩️ *Devolução de Tibia Coins - Milla Service*`,
+      `Olá ${c.nome_completo}! Após análise da sua solicitação #${c.id}, não foi possível concluir a compra.`,
+      `Já realizamos a devolução de *${qtdFormatada} TC* para o personagem *${c.personagem_origem}*.`,
+      `Segue abaixo o comprovante da devolução:`,
+    ].join('\n');
+  } else {
+    texto = [
+      `Olá ${c.nome_completo}! Sobre sua venda de *${qtdFormatada} TC* (#${c.id}) na *Milla Service*:`,
+      `• Personagem de origem: ${c.personagem_origem}`,
+      `• Valor: ${formatBRL(c.valor_total)}`,
+      `• PIX: ${c.chave_pix}`,
+    ].join('\n');
+  }
 
   window.open(
     `https://wa.me/${numero}?text=${encodeURIComponent(texto)}`,
@@ -272,22 +293,24 @@ export default function AdminPanelModal({ isOpen, onClose, onNotify, onDataChang
     }
   };
 
-  const atualizarStatusCompra = async (id, status) => {
+  const atualizarStatusCompra = async (compra, status) => {
     try {
       const res = await fetch('/api/compras-tc', {
         method: 'PATCH',
         headers: headersAdmin(),
-        body: JSON.stringify({ id, status }),
+        body: JSON.stringify({ id: compra.id, status }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Erro ao atualizar compra de TC.');
 
-      setComprasTc((prev) => prev.map((c) => (c.id === id ? data : c)));
+      setComprasTc((prev) => prev.map((c) => (c.id === compra.id ? data : c)));
       onNotify?.(
         status === 'pago'
-          ? `Compra #${id} marcada como paga!`
-          : `Compra #${id} marcada como devolvida.`
+          ? `Compra #${compra.id} marcada como paga! Abrindo WhatsApp...`
+          : `Compra #${compra.id} marcada como devolvida! Abrindo WhatsApp...`
       );
+
+      abrirWhatsAppCompra(compra, status);
     } catch (err) {
       onNotify?.(err.message);
     }
@@ -905,7 +928,7 @@ export default function AdminPanelModal({ isOpen, onClose, onNotify, onDataChang
                         <div className="flex flex-wrap items-center gap-2">
                           <button
                             type="button"
-                            onClick={() => abrirWhatsAppCompra(c)}
+                            onClick={() => abrirWhatsAppCompra(c, c.status)}
                             className="rounded-lg border border-emerald-400/30 bg-emerald-500/15 px-2.5 py-1 font-semibold text-emerald-200 hover:bg-emerald-500/25 cursor-pointer"
                           >
                             <i className="fa-brands fa-whatsapp mr-1" />
@@ -915,7 +938,7 @@ export default function AdminPanelModal({ isOpen, onClose, onNotify, onDataChang
                           {c.status !== 'pago' && (
                             <button
                               type="button"
-                              onClick={() => atualizarStatusCompra(c.id, 'pago')}
+                              onClick={() => atualizarStatusCompra(c, 'pago')}
                               className="rounded-lg border border-cyan-400/30 bg-cyan-500/15 px-2.5 py-1 font-semibold text-cyan-200 hover:bg-cyan-500/25 cursor-pointer"
                             >
                               Marcar Pago
@@ -925,7 +948,7 @@ export default function AdminPanelModal({ isOpen, onClose, onNotify, onDataChang
                           {c.status !== 'devolvido' && (
                             <button
                               type="button"
-                              onClick={() => atualizarStatusCompra(c.id, 'devolvido')}
+                              onClick={() => atualizarStatusCompra(c, 'devolvido')}
                               className="rounded-lg border border-rose-400/30 bg-rose-500/15 px-2.5 py-1 font-semibold text-rose-200 hover:bg-rose-500/25 cursor-pointer"
                             >
                               Devolvido
