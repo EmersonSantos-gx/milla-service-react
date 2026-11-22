@@ -27,7 +27,7 @@
       "short_name": "Admin",
       "description": "Abrir gestão de pedidos, loja e avaliações",
       "url": "/?admin=1",
-      "icons": [{ "src": "/tibia-coins.png", "sizes": "192x192" }]
+      "icons": [{ "src": "/icon-app.png", "sizes": "192x192" }]
     }
   ]
 }
