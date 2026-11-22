@@ -25,9 +25,21 @@ body {
 }
 
 /* Camadas de fundo (Background 50% + Atmosfera Dark Tech Premium) */
-.bg-scene {
+.bg-scene,
+.bg-custom-image,
+.bg-grid-overlay {
   position: fixed;
-  inset: 0;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100vh;
+  height: 100lvh;
+  transform: translate3d(0, 0, 0);
+  will-change: transform;
+  pointer-events: none;
+}
+
+.bg-scene {
   z-index: -2;
   background:
     radial-gradient(circle at 18% 12%, rgba(124, 58, 237, 0.28) 0%, transparent 45%),
@@ -37,21 +49,15 @@ body {
 }
 
 .bg-custom-image {
-  position: fixed;
-  inset: 0;
   z-index: -1;
   background-position: center;
   background-size: cover;
   background-repeat: no-repeat;
   opacity: 0.5;
-  pointer-events: none;
 }
 
 .bg-grid-overlay {
-  position: fixed;
-  inset: 0;
   z-index: -1;
-  pointer-events: none;
   background-image:
     linear-gradient(rgba(139, 92, 246, 0.05) 1px, transparent 1px),
     linear-gradient(90deg, rgba(34, 211, 238, 0.05) 1px, transparent 1px);
