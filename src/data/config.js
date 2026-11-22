@@ -9,7 +9,7 @@ export const CONFIG = {
   telefone: '+5582993643044',
   instagram: 'https://instagram.com/@',
   fotoUrl: `${BASE}assets/avatar.png`,
-  backgroundUrl: `${BASE}assets/background.png`,
+  backgroundUrl: `${BASE}assets/background1.png`,
   devLogoUrl: `${BASE}assets/gxdev-logo.png`,
   devSiteUrl: 'https://www.gxdev.space/',
   cnpj: '',
