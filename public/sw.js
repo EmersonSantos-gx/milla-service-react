@@ -1,22 +1,17 @@
-const CACHE_NAME = 'milla-service-v1';
-
-self.addEventListener('install', (event) => {
+// Service Worker de limpeza: remove caches antigos e se desinstala automaticamente
+self.addEventListener('install', () => {
   self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil(self.clients.claim());
-});
-
-self.addEventListener('fetch', (event) => {
-  const url = new URL(event.request.url);
-
-  // Nunca interceptar chamadas da API ou Mercado Pago
-  if (url.pathname.startsWith('/api/') || event.request.method !== 'GET') {
-    return;
-  }
-
-  event.respondWith(
-    fetch(event.request).catch(() => caches.match(event.request))
+  event.waitUntil(
+    caches
+      .keys()
+      .then((keys) => Promise.all(keys.map((key) => caches.delete(key))))
+      .then(() => self.registration.unregister())
+      .then(() => self.clients.matchAll({ type: 'window' }))
+      .then((clients) => {
+        clients.forEach((client) => client.navigate(client.url));
+      })
   );
 });

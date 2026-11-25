@@ -1,10 +1,46 @@
 import { useEffect, useMemo, useState } from 'react';
-import { DEFAULT_TC_IMAGE } from './StoreSection';
 
+const DEFAULT_TC_IMAGE =
+  'https://www.tibiawiki.com.br/images/5/55/Tibia_Coins.gif';
 const MILLA_WHATSAPP = '5582993643044';
 const UMA_HORA_MS = 60 * 60 * 1000;
 const ESTOQUE_MINIMO_ALERTA = 1000;
 const STORAGE_KEY = 'milla_admin_token';
+
+const ICONES_PRODUTO = [
+  { value: 'fa-coins', label: 'Moedas (Tibia Coins)' },
+  { value: 'fa-crown', label: 'Coroa (VIP)' },
+  { value: 'fa-shield-halved', label: 'Escudo (Quests)' },
+  { value: 'fa-fire', label: 'Fogo (Endgame / Bosses)' },
+  { value: 'fa-gamepad', label: 'Controle (Serviços)' },
+  { value: 'fa-gift', label: 'Presente (Gift Cards)' },
+];
+
+const PRODUTO_VAZIO = {
+  id: null,
+  nome: '',
+  descricao: '',
+  preco: '',
+  tag: 'Destaque',
+  icone: 'fa-coins',
+  cor_icone: 'text-[#FFBF24]',
+  destaque: 'Entrega rápida',
+  ordem: 0,
+  ativo: true,
+};
+
+const SERVICEIRO_VAZIO = {
+  id: null,
+  nome: '',
+  servidor: '',
+  especialidade: '',
+  telefone: '',
+  whatsapp: '',
+  avatar_url: '',
+  avaliacoes: 0,
+  verificado: true,
+  ativo: true,
+};
 
 const formatBRL = (valor) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(valor || 0));
@@ -36,11 +72,14 @@ const exportarCSV = (nomeArquivo, cabecalhos, linhas) => {
 };
 
 const abrirWhatsAppPedido = (p) => {
+  const descricaoPedido =
+    p.resumo_itens || `${Number(p.quantidade || 0).toLocaleString('pt-BR')} TC`;
+
   const texto = [
-    `✅ *Pagamento Aprovado - Milla Service*`,
+    `✅ *Pagamento Aprovado - Milla Store*`,
     `*Pedido:* #${p.id}`,
     `*Personagem:* ${p.personagem}${p.servidor ? ` (${p.servidor})` : ''}`,
-    `*Quantidade:* ${Number(p.quantidade).toLocaleString('pt-BR')} TC`,
+    `*Itens:* ${descricaoPedido}`,
     `*Valor:* ${formatBRL(p.valor_total)}`,
     `*Método:* ${String(p.metodo_pagamento || '').toUpperCase()}`,
     `*Cliente:* ${p.cliente_nome} (${p.whatsapp})`,
@@ -61,7 +100,7 @@ const montarUrlWhatsAppCompra = (c, tipo = 'geral') => {
   let texto = '';
   if (tipo === 'pago') {
     texto = [
-      `✅ *Pagamento Realizado - Milla Service*`,
+      `✅ *Pagamento Realizado - Milla Store*`,
       `Olá ${c.nome_completo}! Sua venda de *${qtdFormatada} TC* (#${c.id}) foi aprovada.`,
       `• Valor enviado: *${formatBRL(c.valor_total)}*`,
       `• Chave PIX: ${c.chave_pix}`,
@@ -69,14 +108,14 @@ const montarUrlWhatsAppCompra = (c, tipo = 'geral') => {
     ].join('\n');
   } else if (tipo === 'devolvido') {
     texto = [
-      `↩️ *Devolução de Tibia Coins - Milla Service*`,
+      `↩️ *Devolução de Tibia Coins - Milla Store*`,
       `Olá ${c.nome_completo}! Após análise da sua solicitação #${c.id}, não foi possível concluir a compra.`,
       `Já realizamos a devolução de *${qtdFormatada} TC* para o personagem *${c.personagem_origem}*.`,
       `Segue abaixo o comprovante da devolução:`,
     ].join('\n');
   } else {
     texto = [
-      `Olá ${c.nome_completo}! Sobre sua venda de *${qtdFormatada} TC* (#${c.id}) na *Milla Service*:`,
+      `Olá ${c.nome_completo}! Sobre sua venda de *${qtdFormatada} TC* (#${c.id}) na *Milla Store*:`,
       `• Personagem de origem: ${c.personagem_origem}`,
       `• Valor: ${formatBRL(c.valor_total)}`,
       `• PIX: ${c.chave_pix}`,
@@ -125,16 +164,29 @@ export default function AdminPanelModal({ isOpen, onClose, onNotify, onDataChang
   const [aba, setAba] = useState('resumo');
   const [diaHover, setDiaHover] = useState(null);
 
+  // Filtros
   const [filtroAvaliacoes, setFiltroAvaliacoes] = useState('pendentes');
   const [filtroPedidos, setFiltroPedidos] = useState('todos');
   const [buscaPedidos, setBuscaPedidos] = useState('');
   const [filtroCompras, setFiltroCompras] = useState('todos');
   const [buscaCompras, setBuscaCompras] = useState('');
+  const [buscaLeads, setBuscaLeads] = useState('');
 
+  // Dados carregados do Neon
   const [avaliacoes, setAvaliacoes] = useState([]);
   const [loja, setLoja] = useState(null);
   const [pedidos, setPedidos] = useState([]);
   const [comprasTc, setComprasTc] = useState([]);
+  const [produtos, setProdutos] = useState([]);
+  const [serviceiros, setServiceiros] = useState([]);
+  const [leadsVip, setLeadsVip] = useState([]);
+
+  // Formulários de gestão
+  const [formProduto, setFormProduto] = useState(PRODUTO_VAZIO);
+  const [salvandoProduto, setSalvandoProduto] = useState(false);
+  const [formServiceiro, setFormServiceiro] = useState(SERVICEIRO_VAZIO);
+  const [salvandoServiceiro, setSalvandoServiceiro] = useState(false);
+
   const [imagemAmpliada, setImagemAmpliada] = useState(null);
   const [loading, setLoading] = useState(false);
   const [salvandoLoja, setSalvandoLoja] = useState(false);
@@ -148,11 +200,14 @@ export default function AdminPanelModal({ isOpen, onClose, onNotify, onDataChang
     if (!tk) return;
     setLoading(true);
     try {
-      const [resAv, resLoja, resPed, resCompras] = await Promise.all([
+      const [resAv, resLoja, resPed, resCompras, resProd, resSrv, resLeads] = await Promise.all([
         fetch('/api/avaliacoes?all=1', { headers: headersAdmin(tk) }),
         fetch('/api/loja'),
         fetch('/api/pedidos', { headers: headersAdmin(tk) }),
         fetch('/api/compras-tc', { headers: headersAdmin(tk) }),
+        fetch('/api/produtos?all=1', { headers: headersAdmin(tk) }),
+        fetch('/api/serviceiros?all=1', { headers: headersAdmin(tk) }),
+        fetch('/api/leads-vip', { headers: headersAdmin(tk) }),
       ]);
 
       if (resAv.status === 401 || resPed.status === 401 || resCompras.status === 401) {
@@ -162,12 +217,16 @@ export default function AdminPanelModal({ isOpen, onClose, onNotify, onDataChang
         return;
       }
 
-      const [dataAv, dataLoja, dataPed, dataCompras] = await Promise.all([
-        resAv.json(),
-        resLoja.json(),
-        resPed.json(),
-        resCompras.ok ? resCompras.json() : [],
-      ]);
+      const [dataAv, dataLoja, dataPed, dataCompras, dataProd, dataSrv, dataLeads] =
+        await Promise.all([
+          resAv.json(),
+          resLoja.json(),
+          resPed.json(),
+          resCompras.ok ? resCompras.json() : [],
+          resProd.ok ? resProd.json() : [],
+          resSrv.ok ? resSrv.json() : [],
+          resLeads.ok ? resLeads.json() : [],
+        ]);
 
       setAutenticado(true);
       sessionStorage.setItem(STORAGE_KEY, tk);
@@ -175,6 +234,9 @@ export default function AdminPanelModal({ isOpen, onClose, onNotify, onDataChang
       if (dataLoja && dataLoja.id) setLoja(dataLoja);
       setPedidos(Array.isArray(dataPed) ? dataPed : []);
       setComprasTc(Array.isArray(dataCompras) ? dataCompras : []);
+      setProdutos(Array.isArray(dataProd) ? dataProd : []);
+      setServiceiros(Array.isArray(dataSrv) ? dataSrv : []);
+      setLeadsVip(Array.isArray(dataLeads) ? dataLeads : []);
     } catch {
       onNotify?.('Erro ao carregar dados do painel admin.');
     } finally {
@@ -246,6 +308,7 @@ export default function AdminPanelModal({ isOpen, onClose, onNotify, onDataChang
     carregarTudo(token.trim());
   };
 
+  // ================= AVALIAÇÕES =================
   const alterarAprovacao = async (id, aprovado) => {
     try {
       const res = await fetch(`/api/avaliacoes/${id}`, {
@@ -265,9 +328,7 @@ export default function AdminPanelModal({ isOpen, onClose, onNotify, onDataChang
   };
 
   const excluirAvaliacao = async (id, nomeChar) => {
-    const ok = window.confirm(`Excluir permanentemente a avaliação de ${nomeChar || `#${id}`}?`);
-    if (!ok) return;
-
+    if (!window.confirm(`Excluir permanentemente a avaliação de ${nomeChar || `#${id}`}?`)) return;
     try {
       const res = await fetch(`/api/avaliacoes/${id}`, {
         method: 'DELETE',
@@ -284,6 +345,7 @@ export default function AdminPanelModal({ isOpen, onClose, onNotify, onDataChang
     }
   };
 
+  // ================= LOJA & COTAÇÕES =================
   const salvarLoja = async (e) => {
     e.preventDefault();
     if (!loja) return;
@@ -322,6 +384,135 @@ export default function AdminPanelModal({ isOpen, onClose, onNotify, onDataChang
     }
   };
 
+  // ================= PRODUTOS (VITRINE) =================
+  const salvarProduto = async (e) => {
+    e.preventDefault();
+    setSalvandoProduto(true);
+    try {
+      const isEdit = Boolean(formProduto.id);
+      const res = await fetch('/api/produtos', {
+        method: isEdit ? 'PUT' : 'POST',
+        headers: headersAdmin(),
+        body: JSON.stringify({
+          ...formProduto,
+          preco: parseDecimal(formProduto.preco),
+          ordem: Number(formProduto.ordem) || 0,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erro ao salvar produto.');
+
+      setProdutos((prev) =>
+        isEdit ? prev.map((p) => (p.id === data.id ? data : p)) : [...prev, data]
+      );
+      setFormProduto(PRODUTO_VAZIO);
+      onDataChanged?.();
+      onNotify?.(isEdit ? 'Produto atualizado!' : 'Produto cadastrado na vitrine!');
+    } catch (err) {
+      onNotify?.(err.message);
+    } finally {
+      setSalvandoProduto(false);
+    }
+  };
+
+  const alternarProdutoAtivo = async (prod) => {
+    try {
+      const res = await fetch('/api/produtos', {
+        method: 'PUT',
+        headers: headersAdmin(),
+        body: JSON.stringify({ id: prod.id, ativo: !prod.ativo }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erro ao atualizar produto.');
+
+      setProdutos((prev) => prev.map((p) => (p.id === prod.id ? data : p)));
+      onDataChanged?.();
+      onNotify?.(data.ativo ? 'Produto exibido na vitrine.' : 'Produto ocultado da vitrine.');
+    } catch (err) {
+      onNotify?.(err.message);
+    }
+  };
+
+  const excluirProduto = async (prod) => {
+    if (!window.confirm(`Excluir o produto "${prod.nome}"?`)) return;
+    try {
+      const res = await fetch(`/api/produtos?id=${prod.id}`, {
+        method: 'DELETE',
+        headers: headersAdmin(),
+      });
+      if (!res.ok) throw new Error('Erro ao excluir produto.');
+      setProdutos((prev) => prev.filter((p) => p.id !== prod.id));
+      onDataChanged?.();
+      onNotify?.('Produto excluído.');
+    } catch (err) {
+      onNotify?.(err.message);
+    }
+  };
+
+  // ================= SERVICEIROS =================
+  const salvarServiceiro = async (e) => {
+    e.preventDefault();
+    setSalvandoServiceiro(true);
+    try {
+      const isEdit = Boolean(formServiceiro.id);
+      const res = await fetch('/api/serviceiros', {
+        method: isEdit ? 'PUT' : 'POST',
+        headers: headersAdmin(),
+        body: JSON.stringify({
+          ...formServiceiro,
+          avaliacoes: Number(formServiceiro.avaliacoes) || 0,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erro ao salvar serviceiro.');
+
+      setServiceiros((prev) =>
+        isEdit ? prev.map((s) => (s.id === data.id ? data : s)) : [...prev, data]
+      );
+      setFormServiceiro(SERVICEIRO_VAZIO);
+      onDataChanged?.();
+      onNotify?.(isEdit ? 'Serviceiro atualizado!' : 'Serviceiro cadastrado!');
+    } catch (err) {
+      onNotify?.(err.message);
+    } finally {
+      setSalvandoServiceiro(false);
+    }
+  };
+
+  const alternarCampoServiceiro = async (srv, campo) => {
+    try {
+      const res = await fetch('/api/serviceiros', {
+        method: 'PUT',
+        headers: headersAdmin(),
+        body: JSON.stringify({ id: srv.id, [campo]: !srv[campo] }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erro ao atualizar serviceiro.');
+
+      setServiceiros((prev) => prev.map((s) => (s.id === srv.id ? data : s)));
+      onDataChanged?.();
+    } catch (err) {
+      onNotify?.(err.message);
+    }
+  };
+
+  const excluirServiceiro = async (srv) => {
+    if (!window.confirm(`Excluir o serviceiro "${srv.nome}"?`)) return;
+    try {
+      const res = await fetch(`/api/serviceiros?id=${srv.id}`, {
+        method: 'DELETE',
+        headers: headersAdmin(),
+      });
+      if (!res.ok) throw new Error('Erro ao excluir serviceiro.');
+      setServiceiros((prev) => prev.filter((s) => s.id !== srv.id));
+      onDataChanged?.();
+      onNotify?.('Serviceiro excluído.');
+    } catch (err) {
+      onNotify?.(err.message);
+    }
+  };
+
+  // ================= PEDIDOS E COMPRAS TC =================
   const marcarEntregue = async (id) => {
     try {
       const res = await fetch('/api/pedidos', {
@@ -340,9 +531,7 @@ export default function AdminPanelModal({ isOpen, onClose, onNotify, onDataChang
   };
 
   const cancelarPedido = async (id) => {
-    const ok = window.confirm(`Cancelar o pedido #${id} por falta de pagamento (+1h)?`);
-    if (!ok) return;
-
+    if (!window.confirm(`Cancelar o pedido #${id} por falta de pagamento (+1h)?`)) return;
     try {
       const res = await fetch('/api/pedidos', {
         method: 'PATCH',
@@ -360,9 +549,7 @@ export default function AdminPanelModal({ isOpen, onClose, onNotify, onDataChang
   };
 
   const cancelarPedidosExpirados = async () => {
-    const ok = window.confirm('Cancelar todos os pedidos pendentes com mais de 1 hora?');
-    if (!ok) return;
-
+    if (!window.confirm('Cancelar todos os pedidos pendentes com mais de 1 hora?')) return;
     try {
       const res = await fetch('/api/pedidos', {
         method: 'PATCH',
@@ -426,6 +613,7 @@ export default function AdminPanelModal({ isOpen, onClose, onNotify, onDataChang
     }
   };
 
+  // ================= FILTROS E CONTADORES =================
   const pendentesAv = avaliacoes.filter((a) => !a.aprovado);
   const aprovadasAv = avaliacoes.filter((a) => Boolean(a.aprovado));
   const listaAvaliacoes = filtroAvaliacoes === 'pendentes' ? pendentesAv : aprovadasAv;
@@ -460,6 +648,11 @@ export default function AdminPanelModal({ isOpen, onClose, onNotify, onDataChang
     );
   });
 
+  const leadsFiltrados = leadsVip.filter((l) => {
+    if (!buscaLeads.trim()) return true;
+    return String(l.contato || '').toLowerCase().includes(buscaLeads.toLowerCase());
+  });
+
   const precoVenda250 = parseDecimal(loja?.preco_unitario) * 250;
   const precoCompra250 = parseDecimal(loja?.preco_compra_unitario) * 250;
   const spread250 = precoVenda250 - precoCompra250;
@@ -468,8 +661,11 @@ export default function AdminPanelModal({ isOpen, onClose, onNotify, onDataChang
   const navItems = [
     { id: 'resumo', label: 'Resumo Executivo', short: 'Resumo', icon: 'fa-chart-line', badge: estoqueBaixo ? '!' : 0 },
     { id: 'pedidos', label: 'Pedidos (Vendas)', short: 'Pedidos', icon: 'fa-bag-shopping', badge: pedidosParaEntregar },
-    { id: 'compras_tc', label: 'Compras de TC', short: 'Compras TC', icon: 'fa-hand-holding-dollar', badge: comprasPendentes },
-    { id: 'loja', label: 'Loja & Cotações', short: 'Loja', icon: 'fa-sliders', badge: 0 },
+    { id: 'compras_tc', label: 'Compras de TC', short: 'Compras', icon: 'fa-hand-holding-dollar', badge: comprasPendentes },
+    { id: 'loja', label: 'Loja & Cotações', short: 'Cotações', icon: 'fa-sliders', badge: 0 },
+    { id: 'produtos', label: 'Produtos (Vitrine)', short: 'Produtos', icon: 'fa-boxes-stacked', badge: produtos.length },
+    { id: 'serviceiros', label: 'Serviceiros', short: 'Serviceiros', icon: 'fa-shield-halved', badge: serviceiros.length },
+    { id: 'leads', label: 'Leads VIP', short: 'VIP', icon: 'fa-bell', badge: leadsVip.length },
     { id: 'avaliacoes', label: 'Avaliações', short: 'Reviews', icon: 'fa-star', badge: pendentesAv.length },
   ];
 
@@ -482,10 +678,9 @@ export default function AdminPanelModal({ isOpen, onClose, onNotify, onDataChang
     >
       <div
         className={`relative flex w-full flex-col overflow-hidden rounded-[28px] border border-cyan-400/25 bg-[#060B18] text-left shadow-[0_0_80px_rgba(6,182,212,0.18)] transition-all ${
-          autenticado ? 'h-[90vh] sm:h-[85vh] max-w-6xl' : 'max-h-[90vh] max-w-md'
+          autenticado ? 'h-[90vh] sm:h-[86vh] max-w-6xl' : 'max-h-[90vh] max-w-md'
         }`}
       >
-        {/* Glows ambientes */}
         <div className="pointer-events-none absolute -top-28 -left-28 h-72 w-72 rounded-full bg-cyan-500/15 blur-3xl" />
         <div className="pointer-events-none absolute -bottom-28 -right-28 h-72 w-72 rounded-full bg-violet-600/15 blur-3xl" />
 
@@ -498,7 +693,7 @@ export default function AdminPanelModal({ isOpen, onClose, onNotify, onDataChang
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="text-sm sm:text-base font-extrabold tracking-tight text-white">
-                  Milla Service
+                  Milla Store
                 </h3>
                 <span className="rounded-full border border-cyan-400/30 bg-cyan-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-cyan-300">
                   Admin Pro
@@ -555,7 +750,7 @@ export default function AdminPanelModal({ isOpen, onClose, onNotify, onDataChang
             <button
               type="submit"
               disabled={loading}
-              className="btn-tech-gradient w-full rounded-2xl py-3.5 text-sm font-bold text-white shadow-lg cursor-pointer disabled:opacity-60"
+              className="btn-gold-primary w-full rounded-2xl py-3.5 text-sm font-bold shadow-lg cursor-pointer disabled:opacity-60"
             >
               {loading ? 'Validando acesso...' : 'Desbloquear Painel'}
             </button>
@@ -588,7 +783,7 @@ export default function AdminPanelModal({ isOpen, onClose, onNotify, onDataChang
                         <span className="md:hidden">{item.short}</span>
                       </span>
                       {item.badge ? (
-                        <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-rose-500/25 px-1.5 text-[10px] font-extrabold text-rose-300 border border-rose-400/30">
+                        <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-white/10 px-1.5 text-[10px] font-extrabold text-cyan-200 border border-white/15">
                           {item.badge}
                         </span>
                       ) : null}
@@ -597,7 +792,7 @@ export default function AdminPanelModal({ isOpen, onClose, onNotify, onDataChang
                 })}
               </nav>
 
-              {/* Mini-card de Estoque ao Vivo no rodapé da Sidebar (Desktop) */}
+              {/* Mini-card de Estoque ao Vivo */}
               <div className="hidden md:block mt-4 rounded-2xl border border-white/10 bg-gradient-to-b from-white/[0.04] to-transparent p-3.5">
                 <div className="flex items-center justify-between text-[11px]">
                   <span className="text-slate-400 font-semibold">Estoque em Cofre</span>
@@ -627,115 +822,66 @@ export default function AdminPanelModal({ isOpen, onClose, onNotify, onDataChang
               </div>
             </aside>
 
-            {/* Área de Conteúdo (scroll isolado + sem pulo lateral) */}
+            {/* Área de Conteúdo */}
             <div className="min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable] p-4 sm:p-6 space-y-5">
               {/* ================= RESUMO EXECUTIVO ================= */}
               {aba === 'resumo' && (
                 <div className="space-y-5">
                   {estoqueBaixo && (
-                    <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-400/40 bg-gradient-to-r from-amber-500/15 via-rose-500/10 to-transparent p-4 shadow-[0_0_25px_rgba(245,158,11,0.12)]">
+                    <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-400/40 bg-gradient-to-r from-amber-500/15 via-rose-500/10 to-transparent p-4">
                       <div className="flex items-center gap-3">
                         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-500/20 text-amber-300 animate-pulse">
                           <i className="fa-solid fa-triangle-exclamation text-lg" />
                         </div>
                         <div className="text-xs">
-                          <strong className="block text-sm text-amber-200">
-                            Alerta de Estoque Baixo
-                          </strong>
+                          <strong className="block text-sm text-amber-200">Alerta de Estoque Baixo</strong>
                           <span className="text-slate-300">
-                            Restam apenas <strong>{estoqueAtual.toLocaleString('pt-BR')} TC</strong>. Aprove compras de jogadores para repor automaticamente.
+                            Restam apenas <strong>{estoqueAtual.toLocaleString('pt-BR')} TC</strong>.
                           </span>
                         </div>
                       </div>
                       <button
                         type="button"
                         onClick={() => setAba('compras_tc')}
-                        className="rounded-xl bg-amber-400 px-3.5 py-2 text-xs font-extrabold text-slate-950 hover:bg-amber-300 cursor-pointer transition"
+                        className="rounded-xl bg-amber-400 px-3.5 py-2 text-xs font-extrabold text-slate-950 hover:bg-amber-300 cursor-pointer"
                       >
                         Ir para Compras TC →
                       </button>
                     </div>
                   )}
 
-                  {/* KPIs */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
                     <div className="rounded-2xl border border-cyan-400/20 bg-gradient-to-br from-cyan-500/10 via-slate-950/80 to-slate-950 p-4">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-                          Faturamento
-                        </span>
-                        <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-cyan-500/15 text-cyan-300">
-                          <i className="fa-solid fa-arrow-trend-up text-xs" />
-                        </span>
-                      </div>
-                      <p className="mt-2 text-xl font-black text-white">
-                        {formatBRL(metricas.totalVendido)}
-                      </p>
-                      <span className="text-[11px] text-cyan-300">
-                        {metricas.tcVendidas.toLocaleString('pt-BR')} TC vendidas
-                      </span>
+                      <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Faturamento</span>
+                      <p className="mt-2 text-xl font-black text-white">{formatBRL(metricas.totalVendido)}</p>
+                      <span className="text-[11px] text-cyan-300">{metricas.tcVendidas.toLocaleString('pt-BR')} TC vendidas</span>
                     </div>
 
                     <div className="rounded-2xl border border-emerald-400/20 bg-gradient-to-br from-emerald-500/10 via-slate-950/80 to-slate-950 p-4">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-                          Compras TC
-                        </span>
-                        <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-500/15 text-emerald-300">
-                          <i className="fa-solid fa-hand-holding-dollar text-xs" />
-                        </span>
-                      </div>
-                      <p className="mt-2 text-xl font-black text-white">
-                        {formatBRL(metricas.totalComprado)}
-                      </p>
-                      <span className="text-[11px] text-emerald-300">
-                        +{metricas.tcCompradas.toLocaleString('pt-BR')} TC compradas
-                      </span>
+                      <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Compras TC</span>
+                      <p className="mt-2 text-xl font-black text-white">{formatBRL(metricas.totalComprado)}</p>
+                      <span className="text-[11px] text-emerald-300">+{metricas.tcCompradas.toLocaleString('pt-BR')} TC compradas</span>
                     </div>
 
                     <div className="rounded-2xl border border-violet-400/20 bg-gradient-to-br from-violet-500/10 via-slate-950/80 to-slate-950 p-4">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-                          Balanço
-                        </span>
-                        <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-violet-500/15 text-violet-300">
-                          <i className="fa-solid fa-wallet text-xs" />
-                        </span>
-                      </div>
-                      <p className="mt-2 text-xl font-black text-white">
-                        {formatBRL(metricas.balanco)}
-                      </p>
+                      <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Balanço</span>
+                      <p className="mt-2 text-xl font-black text-white">{formatBRL(metricas.balanco)}</p>
                       <span className="text-[11px] text-violet-300">Entradas − Saídas</span>
                     </div>
 
                     <div className="rounded-2xl border border-amber-400/20 bg-gradient-to-br from-amber-500/10 via-slate-950/80 to-slate-950 p-4">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-                          Estoque
-                        </span>
-                        <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-500/15 text-amber-300">
-                          <i className="fa-solid fa-coins text-xs" />
-                        </span>
-                      </div>
-                      <p className="mt-2 text-xl font-black text-amber-400">
-                        {estoqueAtual.toLocaleString('pt-BR')} TC
-                      </p>
-                      <span className="text-[11px] text-slate-400">
-                        Margem: <strong className="text-emerald-300">{margemPercent.toFixed(1)}%</strong>
-                      </span>
+                      <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Leads Clube VIP</span>
+                      <p className="mt-2 text-xl font-black text-amber-400">{leadsVip.length}</p>
+                      <span className="text-[11px] text-slate-400">Contatos p/ alerta de cotação</span>
                     </div>
                   </div>
 
-                  {/* Gráfico Interativo de 7 dias */}
+                  {/* Gráfico 7 dias */}
                   <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5">
                     <div className="mb-5 flex flex-wrap items-center justify-between gap-2">
                       <div>
-                        <h4 className="text-sm font-extrabold text-white">
-                          Fluxo Financeiro (Últimos 7 dias)
-                        </h4>
-                        <p className="text-xs text-slate-400">
-                          Passe o mouse nas barras para ver os valores exatos do dia
-                        </p>
+                        <h4 className="text-sm font-extrabold text-white">Fluxo Financeiro (Últimos 7 dias)</h4>
+                        <p className="text-xs text-slate-400">Passe o mouse nas barras para ver os valores do dia</p>
                       </div>
                       <div className="flex items-center gap-4 text-[11px] font-semibold">
                         <span className="flex items-center gap-1.5 text-cyan-300">
@@ -770,18 +916,14 @@ export default function AdminPanelModal({ isOpen, onClose, onNotify, onDataChang
                             <div className="flex h-full w-full items-end justify-center gap-1.5 rounded-xl bg-white/[0.02] px-1 pt-2">
                               <div
                                 style={{ height: `${d.vendas > 0 ? hV : 4}%` }}
-                                className="w-3 sm:w-4 rounded-t-lg bg-gradient-to-t from-cyan-600 to-cyan-300 shadow-[0_0_12px_rgba(34,211,238,0.25)] transition-all duration-300"
+                                className="w-3 sm:w-4 rounded-t-lg bg-gradient-to-t from-cyan-600 to-cyan-300 transition-all duration-300"
                               />
                               <div
                                 style={{ height: `${d.compras > 0 ? hC : 4}%` }}
-                                className="w-3 sm:w-4 rounded-t-lg bg-gradient-to-t from-emerald-600 to-emerald-300 shadow-[0_0_12px_rgba(16,185,129,0.25)] transition-all duration-300"
+                                className="w-3 sm:w-4 rounded-t-lg bg-gradient-to-t from-emerald-600 to-emerald-300 transition-all duration-300"
                               />
                             </div>
-                            <span
-                              className={`text-[11px] font-bold capitalize ${
-                                isHover ? 'text-white' : 'text-slate-400'
-                              }`}
-                            >
+                            <span className={`text-[11px] font-bold capitalize ${isHover ? 'text-white' : 'text-slate-400'}`}>
                               {d.label}
                             </span>
                           </div>
@@ -817,7 +959,7 @@ export default function AdminPanelModal({ isOpen, onClose, onNotify, onDataChang
                           ])
                         )
                       }
-                      className="rounded-2xl border border-emerald-400/30 bg-emerald-500/10 px-4 py-2.5 text-xs font-bold text-emerald-200 hover:bg-emerald-500/20 cursor-pointer transition"
+                      className="rounded-2xl border border-emerald-400/30 bg-emerald-500/10 px-4 py-2.5 text-xs font-bold text-emerald-200 hover:bg-emerald-500/20 cursor-pointer"
                     >
                       <i className="fa-solid fa-file-csv mr-1.5" />
                       Exportar CSV
@@ -830,7 +972,7 @@ export default function AdminPanelModal({ isOpen, onClose, onNotify, onDataChang
                         key={st}
                         type="button"
                         onClick={() => setFiltroPedidos(st)}
-                        className={`rounded-xl border px-3 py-1.5 text-[11px] font-bold uppercase cursor-pointer transition ${
+                        className={`rounded-xl border px-3 py-1.5 text-[11px] font-bold uppercase cursor-pointer ${
                           filtroPedidos === st
                             ? 'border-cyan-400/40 bg-cyan-500/20 text-cyan-200'
                             : 'border-white/10 bg-white/[0.03] text-slate-400 hover:text-white'
@@ -850,7 +992,7 @@ export default function AdminPanelModal({ isOpen, onClose, onNotify, onDataChang
                       <button
                         type="button"
                         onClick={cancelarPedidosExpirados}
-                        className="rounded-xl bg-rose-500/25 border border-rose-400/40 px-3 py-1.5 font-bold text-rose-100 hover:bg-rose-500/35 cursor-pointer"
+                        className="rounded-xl bg-rose-500/25 border border-rose-400/40 px-3 py-1.5 font-bold text-rose-100 cursor-pointer"
                       >
                         Cancelar expirados (+1h)
                       </button>
@@ -859,62 +1001,38 @@ export default function AdminPanelModal({ isOpen, onClose, onNotify, onDataChang
 
                   {pedidosFiltrados.length === 0 ? (
                     <p className="rounded-2xl border border-white/10 bg-white/[0.02] p-8 text-center text-xs text-slate-400">
-                      Nenhum pedido encontrado com esse filtro.
+                      Nenhum pedido encontrado.
                     </p>
                   ) : (
                     <div className="space-y-3">
                       {pedidosFiltrados.map((p) => {
                         const expirado = p.status === 'pendente' && passouUmaHora(p.criado_em);
                         return (
-                          <div
-                            key={p.id}
-                            className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-xs hover:border-cyan-400/25 transition"
-                          >
+                          <div key={p.id} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-xs">
                             <div className="flex flex-wrap items-center justify-between gap-2">
                               <div>
                                 <strong className="text-sm text-white">#{p.id} • {p.personagem}</strong>
                                 {p.servidor && <span className="ml-2 text-cyan-300">({p.servidor})</span>}
                               </div>
-                              <div className="flex items-center gap-1.5">
-                                {expirado && (
-                                  <span className="rounded-full bg-rose-500/20 px-2 py-0.5 text-[10px] font-bold text-rose-300">
-                                    +1h expirado
-                                  </span>
-                                )}
-                                <span
-                                  className={`rounded-full px-2.5 py-0.5 text-[10px] font-extrabold uppercase ${
-                                    p.status === 'pago'
-                                      ? 'bg-emerald-500/20 text-emerald-300'
-                                      : p.status === 'entregue'
-                                      ? 'bg-cyan-500/20 text-cyan-300'
-                                      : p.status === 'cancelado'
-                                      ? 'bg-rose-500/20 text-rose-300'
-                                      : 'bg-amber-500/20 text-amber-300'
-                                  }`}
-                                >
-                                  {p.status}
-                                </span>
-                              </div>
+                              <span className="rounded-full bg-white/10 px-2.5 py-0.5 text-[10px] font-extrabold uppercase text-cyan-200">
+                                {p.status}
+                              </span>
                             </div>
-
                             <p className="mt-2 text-slate-300">
                               Cliente: <strong className="text-white">{p.cliente_nome}</strong> • WhatsApp:{' '}
                               <strong className="text-white">{p.whatsapp}</strong>
                             </p>
-
                             <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-white/5 pt-3">
                               <span className="text-sm font-extrabold text-amber-400">
-                                {Number(p.quantidade).toLocaleString('pt-BR')} TC • {formatBRL(p.valor_total)}{' '}
-                                <span className="text-[11px] font-semibold text-slate-400">
-                                  ({String(p.metodo_pagamento).toUpperCase()})
-                                </span>
-                              </span>
+                              {p.resumo_itens || `${Number(p.quantidade || 0).toLocaleString('pt-BR')} TC`} •{' '}
+                              {formatBRL(p.valor_total)}
+                            </span>
 
                               <div className="flex flex-wrap gap-2">
                                 <button
                                   type="button"
                                   onClick={() => abrirWhatsAppPedido(p)}
-                                  className="rounded-xl border border-emerald-400/30 bg-emerald-500/15 px-3 py-1.5 font-bold text-emerald-200 hover:bg-emerald-500/25 cursor-pointer"
+                                  className="rounded-xl border border-emerald-400/30 bg-emerald-500/15 px-3 py-1.5 font-bold text-emerald-200 cursor-pointer"
                                 >
                                   <i className="fa-brands fa-whatsapp mr-1" />
                                   WhatsApp
@@ -923,7 +1041,7 @@ export default function AdminPanelModal({ isOpen, onClose, onNotify, onDataChang
                                   <button
                                     type="button"
                                     onClick={() => marcarEntregue(p.id)}
-                                    className="rounded-xl border border-cyan-400/30 bg-cyan-500/15 px-3 py-1.5 font-bold text-cyan-200 hover:bg-cyan-500/25 cursor-pointer"
+                                    className="rounded-xl border border-cyan-400/30 bg-cyan-500/15 px-3 py-1.5 font-bold text-cyan-200 cursor-pointer"
                                   >
                                     Marcar Entregue
                                   </button>
@@ -932,7 +1050,7 @@ export default function AdminPanelModal({ isOpen, onClose, onNotify, onDataChang
                                   <button
                                     type="button"
                                     onClick={() => cancelarPedido(p.id)}
-                                    className="rounded-xl border border-rose-400/30 bg-rose-500/15 px-3 py-1.5 font-bold text-rose-200 hover:bg-rose-500/25 cursor-pointer"
+                                    className="rounded-xl border border-rose-400/30 bg-rose-500/15 px-3 py-1.5 font-bold text-rose-200 cursor-pointer"
                                   >
                                     Cancelar (+1h)
                                   </button>
@@ -972,7 +1090,7 @@ export default function AdminPanelModal({ isOpen, onClose, onNotify, onDataChang
                           ])
                         )
                       }
-                      className="rounded-2xl border border-emerald-400/30 bg-emerald-500/10 px-4 py-2.5 text-xs font-bold text-emerald-200 hover:bg-emerald-500/20 cursor-pointer transition"
+                      className="rounded-2xl border border-emerald-400/30 bg-emerald-500/10 px-4 py-2.5 text-xs font-bold text-emerald-200 cursor-pointer"
                     >
                       <i className="fa-solid fa-file-csv mr-1.5" />
                       Exportar CSV
@@ -985,7 +1103,7 @@ export default function AdminPanelModal({ isOpen, onClose, onNotify, onDataChang
                         key={st}
                         type="button"
                         onClick={() => setFiltroCompras(st)}
-                        className={`rounded-xl border px-3 py-1.5 text-[11px] font-bold uppercase cursor-pointer transition ${
+                        className={`rounded-xl border px-3 py-1.5 text-[11px] font-bold uppercase cursor-pointer ${
                           filtroCompras === st
                             ? 'border-emerald-400/40 bg-emerald-500/20 text-emerald-200'
                             : 'border-white/10 bg-white/[0.03] text-slate-400 hover:text-white'
@@ -998,29 +1116,18 @@ export default function AdminPanelModal({ isOpen, onClose, onNotify, onDataChang
 
                   {comprasFiltradas.length === 0 ? (
                     <p className="rounded-2xl border border-white/10 bg-white/[0.02] p-8 text-center text-xs text-slate-400">
-                      Nenhuma solicitação de compra encontrada.
+                      Nenhuma solicitação encontrada.
                     </p>
                   ) : (
                     <div className="space-y-3">
                       {comprasFiltradas.map((c) => (
-                        <div
-                          key={c.id}
-                          className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-xs space-y-3 hover:border-emerald-400/25 transition"
-                        >
+                        <div key={c.id} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-xs space-y-3">
                           <div className="flex flex-wrap items-center justify-between gap-2">
                             <div>
                               <strong className="text-sm text-white">#{c.id} • {c.personagem_origem}</strong>
                               <span className="ml-2 text-slate-400">→ {c.personagem_destino}</span>
                             </div>
-                            <span
-                              className={`rounded-full px-2.5 py-0.5 text-[10px] font-extrabold uppercase ${
-                                c.status === 'pago'
-                                  ? 'bg-emerald-500/20 text-emerald-300'
-                                  : c.status === 'devolvido'
-                                  ? 'bg-rose-500/20 text-rose-300'
-                                  : 'bg-amber-500/20 text-amber-300'
-                              }`}
-                            >
+                            <span className="rounded-full bg-white/10 px-2.5 py-0.5 text-[10px] font-extrabold uppercase text-emerald-300">
                               {c.status}
                             </span>
                           </div>
@@ -1033,7 +1140,7 @@ export default function AdminPanelModal({ isOpen, onClose, onNotify, onDataChang
                               <button
                                 type="button"
                                 onClick={() => copiarTexto(c.chave_pix, 'Chave PIX')}
-                                className="rounded-lg border border-cyan-400/30 bg-cyan-500/15 px-2 py-0.5 text-[11px] font-bold text-cyan-200 hover:bg-cyan-500/25 cursor-pointer"
+                                className="rounded-lg border border-cyan-400/30 bg-cyan-500/15 px-2 py-0.5 text-[11px] font-bold text-cyan-200 cursor-pointer"
                               >
                                 <i className="fa-regular fa-copy mr-1" />
                                 Copiar PIX
@@ -1052,10 +1159,6 @@ export default function AdminPanelModal({ isOpen, onClose, onNotify, onDataChang
                                 alt={`Comprovante #${c.id}`}
                                 className="h-28 w-auto max-w-full object-contain transition group-hover:scale-105"
                               />
-                              <span className="absolute bottom-1.5 right-1.5 rounded-lg bg-black/80 px-2 py-0.5 text-[10px] font-bold text-cyan-300">
-                                <i className="fa-solid fa-magnifying-glass-plus mr-1" />
-                                Ampliar
-                              </span>
                             </button>
                           )}
 
@@ -1063,34 +1166,31 @@ export default function AdminPanelModal({ isOpen, onClose, onNotify, onDataChang
                             <span className="text-sm font-extrabold text-emerald-300">
                               {Number(c.quantidade).toLocaleString('pt-BR')} TC • Pagar {formatBRL(c.valor_total)}
                             </span>
-
                             <div className="flex flex-wrap gap-2">
                               <button
                                 type="button"
                                 onClick={() =>
                                   window.open(montarUrlWhatsAppCompra(c, c.status), '_blank', 'noopener,noreferrer')
                                 }
-                                className="rounded-xl border border-emerald-400/30 bg-emerald-500/15 px-3 py-1.5 font-bold text-emerald-200 hover:bg-emerald-500/25 cursor-pointer"
+                                className="rounded-xl border border-emerald-400/30 bg-emerald-500/15 px-3 py-1.5 font-bold text-emerald-200 cursor-pointer"
                               >
                                 <i className="fa-brands fa-whatsapp mr-1" />
                                 WhatsApp
                               </button>
-
                               {c.status !== 'pago' && (
                                 <button
                                   type="button"
                                   onClick={() => atualizarStatusCompra(c, 'pago')}
-                                  className="rounded-xl border border-cyan-400/30 bg-cyan-500/15 px-3 py-1.5 font-bold text-cyan-200 hover:bg-cyan-500/25 cursor-pointer"
+                                  className="rounded-xl border border-cyan-400/30 bg-cyan-500/15 px-3 py-1.5 font-bold text-cyan-200 cursor-pointer"
                                 >
                                   Marcar Pago (+{Number(c.quantidade).toLocaleString('pt-BR')} TC)
                                 </button>
                               )}
-
                               {c.status !== 'devolvido' && (
                                 <button
                                   type="button"
                                   onClick={() => atualizarStatusCompra(c, 'devolvido')}
-                                  className="rounded-xl border border-rose-400/30 bg-rose-500/15 px-3 py-1.5 font-bold text-rose-200 hover:bg-rose-500/25 cursor-pointer"
+                                  className="rounded-xl border border-rose-400/30 bg-rose-500/15 px-3 py-1.5 font-bold text-rose-200 cursor-pointer"
                                 >
                                   Devolvido
                                 </button>
@@ -1107,71 +1207,23 @@ export default function AdminPanelModal({ isOpen, onClose, onNotify, onDataChang
               {/* ================= LOJA & COTAÇÕES ================= */}
               {aba === 'loja' && loja && (
                 <form onSubmit={salvarLoja} className="space-y-4">
-                  {/* Banner Spread / Margem */}
                   <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-violet-400/30 bg-gradient-to-r from-violet-500/15 via-cyan-500/10 to-transparent p-4">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-500/20 text-violet-300">
-                        <i className="fa-solid fa-percent" />
-                      </div>
-                      <div>
-                        <span className="block text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-                          Spread Atual (a cada 250 TC)
-                        </span>
-                        <strong className="text-base font-black text-white">
-                          {formatBRL(spread250)} de lucro bruto
-                        </strong>
-                      </div>
+                    <div>
+                      <span className="block text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                        Spread Atual (a cada 250 TC)
+                      </span>
+                      <strong className="text-base font-black text-white">
+                        {formatBRL(spread250)} de lucro bruto
+                      </strong>
                     </div>
                     <span className="rounded-full border border-violet-400/40 bg-violet-500/20 px-3 py-1 text-xs font-extrabold text-violet-200">
                       Margem: {margemPercent.toFixed(1)}%
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="mb-1 block text-xs font-bold text-slate-300">Nome do Produto</label>
-                      <input
-                        required
-                        value={loja.nome || ''}
-                        onChange={(e) => setLoja({ ...loja, nome: e.target.value })}
-                        className="dark-input w-full rounded-xl px-3.5 py-2.5 text-sm"
-                      />
-                    </div>
-                    <div>
-                      <div className="mb-1 flex items-center justify-between">
-                        <label className="text-xs font-bold text-slate-300">URL da Imagem</label>
-                        <button
-                          type="button"
-                          onClick={() => setLoja({ ...loja, imagem_url: DEFAULT_TC_IMAGE })}
-                          className="text-[11px] font-bold text-cyan-300 hover:underline cursor-pointer"
-                        >
-                          Usar padrão
-                        </button>
-                      </div>
-                      <input
-                        required
-                        value={loja.imagem_url || ''}
-                        onChange={(e) => setLoja({ ...loja, imagem_url: e.target.value })}
-                        className="dark-input w-full rounded-xl px-3.5 py-2.5 text-sm"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="mb-1 block text-xs font-bold text-slate-300">Descrição curta</label>
-                    <input
-                      required
-                      value={loja.descricao || ''}
-                      onChange={(e) => setLoja({ ...loja, descricao: e.target.value })}
-                      className="dark-input w-full rounded-xl px-3.5 py-2.5 text-sm"
-                    />
-                  </div>
-
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div className="rounded-2xl border border-cyan-400/20 bg-cyan-500/5 p-3">
-                      <label className="mb-1 block text-xs font-bold text-cyan-300">
-                        Venda — 250 TC (R$)
-                      </label>
+                      <label className="mb-1 block text-xs font-bold text-cyan-300">Venda — 250 TC (R$)</label>
                       <input
                         type="number"
                         step="0.01"
@@ -1184,9 +1236,6 @@ export default function AdminPanelModal({ isOpen, onClose, onNotify, onDataChang
                         }}
                         className="dark-input w-full rounded-xl px-3 py-2 text-sm font-bold"
                       />
-                      <span className="mt-1.5 block text-[10px] text-slate-400">
-                        Unitário: R$ {parseDecimal(loja.preco_unitario).toFixed(4)} / TC
-                      </span>
                     </div>
 
                     <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-3">
@@ -1216,17 +1265,13 @@ export default function AdminPanelModal({ isOpen, onClose, onNotify, onDataChang
                     </div>
                   </div>
 
-                  {/* Bloco Compra de TC */}
                   <div className="rounded-2xl border border-emerald-400/25 bg-emerald-500/[0.06] p-4 space-y-3">
                     <span className="block text-xs font-extrabold uppercase tracking-wider text-emerald-300">
-                      <i className="fa-solid fa-hand-holding-dollar mr-1.5" />
                       Compra de Tibia Coins (Jogador vende para a loja)
                     </span>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
-                        <label className="mb-1 block text-xs font-bold text-emerald-300">
-                          Compra — 250 TC (R$)
-                        </label>
+                        <label className="mb-1 block text-xs font-bold text-emerald-300">Compra — 250 TC (R$)</label>
                         <input
                           type="number"
                           step="0.01"
@@ -1239,15 +1284,9 @@ export default function AdminPanelModal({ isOpen, onClose, onNotify, onDataChang
                           }}
                           className="dark-input w-full rounded-xl px-3 py-2 text-sm font-bold"
                         />
-                        <span className="mt-1 block text-[10px] text-slate-400">
-                          Unitário: R$ {parseDecimal(loja.preco_compra_unitario).toFixed(4)} / TC
-                        </span>
                       </div>
-
                       <div>
-                        <label className="mb-1 block text-xs font-bold text-slate-300">
-                          Personagem de recebimento (fixo)
-                        </label>
+                        <label className="mb-1 block text-xs font-bold text-slate-300">Personagem de recebimento</label>
                         <input
                           required
                           value={loja.personagem_recebimento ?? 'Modotank'}
@@ -1258,8 +1297,7 @@ export default function AdminPanelModal({ isOpen, onClose, onNotify, onDataChang
                     </div>
 
                     <ToggleSwitch
-                      label="Aba de Compra de TC ativa na vitrine"
-                      description="Permite que jogadores enviem TCs e solicitem pagamento via PIX"
+                      label="Compra de TC ativa na calculadora"
                       color="emerald"
                       checked={Boolean(loja.compra_ativo)}
                       onChange={(val) => setLoja({ ...loja, compra_ativo: val })}
@@ -1267,32 +1305,372 @@ export default function AdminPanelModal({ isOpen, onClose, onNotify, onDataChang
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                    <ToggleSwitch
-                      label="Loja ativa"
-                      checked={Boolean(loja.ativo)}
-                      onChange={(val) => setLoja({ ...loja, ativo: val })}
-                    />
-                    <ToggleSwitch
-                      label="Aceitar PIX"
-                      color="emerald"
-                      checked={Boolean(loja.pix_ativo)}
-                      onChange={(val) => setLoja({ ...loja, pix_ativo: val })}
-                    />
-                    <ToggleSwitch
-                      label="Aceitar Cartão"
-                      checked={Boolean(loja.cartao_ativo)}
-                      onChange={(val) => setLoja({ ...loja, cartao_ativo: val })}
-                    />
+                    <ToggleSwitch label="Loja ativa" checked={Boolean(loja.ativo)} onChange={(val) => setLoja({ ...loja, ativo: val })} />
+                    <ToggleSwitch label="Aceitar PIX" color="emerald" checked={Boolean(loja.pix_ativo)} onChange={(val) => setLoja({ ...loja, pix_ativo: val })} />
+                    <ToggleSwitch label="Aceitar Cartão" checked={Boolean(loja.cartao_ativo)} onChange={(val) => setLoja({ ...loja, cartao_ativo: val })} />
                   </div>
 
                   <button
                     type="submit"
                     disabled={salvandoLoja}
-                    className="btn-tech-gradient w-full rounded-2xl py-3.5 text-sm font-extrabold text-white shadow-lg cursor-pointer disabled:opacity-60"
+                    className="btn-gold-primary w-full rounded-2xl py-3.5 text-sm font-extrabold cursor-pointer disabled:opacity-60"
                   >
-                    {salvandoLoja ? 'Salvando alterações...' : 'Salvar Configurações da Loja'}
+                    {salvandoLoja ? 'Salvando...' : 'Salvar Configurações da Loja'}
                   </button>
                 </form>
+              )}
+
+              {/* ================= PRODUTOS (VITRINE) ================= */}
+              {aba === 'produtos' && (
+                <div className="space-y-5">
+                  <form onSubmit={salvarProduto} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 space-y-3 text-xs">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-sm font-extrabold text-white">
+                        {formProduto.id ? `Editando Produto #${formProduto.id}` : 'Novo Produto na Vitrine'}
+                      </h4>
+                      {formProduto.id && (
+                        <button
+                          type="button"
+                          onClick={() => setFormProduto(PRODUTO_VAZIO)}
+                          className="text-xs font-bold text-slate-400 hover:text-white cursor-pointer"
+                        >
+                          Cancelar edição
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                      <input
+                        required
+                        placeholder="Nome do produto"
+                        value={formProduto.nome}
+                        onChange={(e) => setFormProduto({ ...formProduto, nome: e.target.value })}
+                        className="dark-input rounded-xl px-3 py-2 text-xs sm:col-span-2"
+                      />
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0.01"
+                        required
+                        placeholder="Preço (R$)"
+                        value={formProduto.preco}
+                        onChange={(e) => setFormProduto({ ...formProduto, preco: e.target.value })}
+                        className="dark-input rounded-xl px-3 py-2 text-xs"
+                      />
+                    </div>
+
+                    <input
+                      required
+                      placeholder="Descrição curta do produto"
+                      value={formProduto.descricao}
+                      onChange={(e) => setFormProduto({ ...formProduto, descricao: e.target.value })}
+                      className="dark-input w-full rounded-xl px-3 py-2 text-xs"
+                    />
+
+                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-2.5">
+                      <input
+                        placeholder="Tag (ex: VIP, Service)"
+                        value={formProduto.tag}
+                        onChange={(e) => setFormProduto({ ...formProduto, tag: e.target.value })}
+                        className="dark-input rounded-xl px-3 py-2 text-xs"
+                      />
+                      <select
+                        value={formProduto.icone}
+                        onChange={(e) => setFormProduto({ ...formProduto, icone: e.target.value })}
+                        className="dark-input rounded-xl px-3 py-2 text-xs"
+                      >
+                        {ICONES_PRODUTO.map((ic) => (
+                          <option key={ic.value} value={ic.value}>
+                            {ic.label}
+                          </option>
+                        ))}
+                      </select>
+                      <input
+                        placeholder="Destaque (ex: Entrega ~5 min)"
+                        value={formProduto.destaque}
+                        onChange={(e) => setFormProduto({ ...formProduto, destaque: e.target.value })}
+                        className="dark-input rounded-xl px-3 py-2 text-xs"
+                      />
+                      <input
+                        type="number"
+                        placeholder="Ordem"
+                        value={formProduto.ordem}
+                        onChange={(e) => setFormProduto({ ...formProduto, ordem: e.target.value })}
+                        className="dark-input rounded-xl px-3 py-2 text-xs"
+                      />
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={salvandoProduto}
+                      className="btn-gold-primary rounded-xl px-5 py-2.5 text-xs font-extrabold cursor-pointer disabled:opacity-60"
+                    >
+                      {salvandoProduto
+                        ? 'Salvando...'
+                        : formProduto.id
+                        ? 'Atualizar Produto'
+                        : 'Adicionar à Vitrine'}
+                    </button>
+                  </form>
+
+                  <div className="space-y-2.5">
+                    {produtos.map((prod) => (
+                      <div
+                        key={prod.id}
+                        className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3.5 text-xs"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/5 text-amber-400">
+                            <i className={`fa-solid ${prod.icone || 'fa-coins'}`} />
+                          </div>
+                          <div>
+                            <strong className="text-sm text-white">{prod.nome}</strong>
+                            <span className="ml-2 rounded-full bg-white/10 px-2 py-0.5 text-[10px] text-amber-300">
+                              {prod.tag}
+                            </span>
+                            <p className="text-[11px] text-slate-400">
+                              {formatBRL(prod.preco)} • {prod.destaque} •{' '}
+                              <span className={prod.ativo ? 'text-emerald-300' : 'text-rose-300'}>
+                                {prod.ativo ? 'Ativo' : 'Oculto'}
+                              </span>
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setFormProduto({ ...prod, preco: String(prod.preco) })}
+                            className="rounded-xl border border-cyan-400/30 bg-cyan-500/15 px-3 py-1 font-bold text-cyan-200 cursor-pointer"
+                          >
+                            Editar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => alternarProdutoAtivo(prod)}
+                            className="rounded-xl border border-amber-400/30 bg-amber-500/15 px-3 py-1 font-bold text-amber-200 cursor-pointer"
+                          >
+                            {prod.ativo ? 'Ocultar' : 'Ativar'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => excluirProduto(prod)}
+                            className="rounded-xl border border-rose-400/30 bg-rose-500/15 px-3 py-1 font-bold text-rose-200 cursor-pointer"
+                          >
+                            Excluir
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* ================= SERVICEIROS ================= */}
+              {aba === 'serviceiros' && (
+                <div className="space-y-5">
+                  <form onSubmit={salvarServiceiro} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 space-y-3 text-xs">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-sm font-extrabold text-white">
+                        {formServiceiro.id ? `Editando Serviceiro #${formServiceiro.id}` : 'Novo Serviceiro de Confiança'}
+                      </h4>
+                      {formServiceiro.id && (
+                        <button
+                          type="button"
+                          onClick={() => setFormServiceiro(SERVICEIRO_VAZIO)}
+                          className="text-xs font-bold text-slate-400 hover:text-white cursor-pointer"
+                        >
+                          Cancelar edição
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                      <input
+                        required
+                        placeholder="Nome / Apelido"
+                        value={formServiceiro.nome}
+                        onChange={(e) => setFormServiceiro({ ...formServiceiro, nome: e.target.value })}
+                        className="dark-input rounded-xl px-3 py-2 text-xs"
+                      />
+                      <input
+                        required
+                        placeholder="Servidor (ex: Belobra)"
+                        value={formServiceiro.servidor}
+                        onChange={(e) => setFormServiceiro({ ...formServiceiro, servidor: e.target.value })}
+                        className="dark-input rounded-xl px-3 py-2 text-xs"
+                      />
+                      <input
+                        required
+                        placeholder="Telefone ex: (82) 99999-9999"
+                        value={formServiceiro.telefone}
+                        onChange={(e) => setFormServiceiro({ ...formServiceiro, telefone: e.target.value })}
+                        className="dark-input rounded-xl px-3 py-2 text-xs"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                      <input
+                        required
+                        placeholder="Especialidade (ex: Soul War & Bosses)"
+                        value={formServiceiro.especialidade}
+                        onChange={(e) => setFormServiceiro({ ...formServiceiro, especialidade: e.target.value })}
+                        className="dark-input rounded-xl px-3 py-2 text-xs sm:col-span-2"
+                      />
+                      <input
+                        placeholder="URL da foto (opcional)"
+                        value={formServiceiro.avatar_url || ''}
+                        onChange={(e) => setFormServiceiro({ ...formServiceiro, avatar_url: e.target.value })}
+                        className="dark-input rounded-xl px-3 py-2 text-xs"
+                      />
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={salvandoServiceiro}
+                      className="btn-gold-primary rounded-xl px-5 py-2.5 text-xs font-extrabold cursor-pointer disabled:opacity-60"
+                    >
+                      {salvandoServiceiro
+                        ? 'Salvando...'
+                        : formServiceiro.id
+                        ? 'Atualizar Serviceiro'
+                        : 'Cadastrar Serviceiro'}
+                    </button>
+                  </form>
+
+                  <div className="space-y-2.5">
+                    {serviceiros.map((srv) => (
+                      <div
+                        key={srv.id}
+                        className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3.5 text-xs"
+                      >
+                        <div>
+                          <strong className="text-sm text-white">{srv.nome}</strong>
+                          <span className="ml-2 rounded-full bg-violet-500/20 px-2 py-0.5 text-[10px] font-bold text-violet-200">
+                            {srv.servidor}
+                          </span>
+                          {srv.verificado && (
+                            <span className="ml-1.5 rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] font-bold text-amber-300">
+                              Verificado
+                            </span>
+                          )}
+                          <p className="mt-1 text-[11px] text-slate-400">
+                            {srv.especialidade} • {srv.telefone}
+                          </p>
+                        </div>
+
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setFormServiceiro(srv)}
+                            className="rounded-xl border border-cyan-400/30 bg-cyan-500/15 px-3 py-1 font-bold text-cyan-200 cursor-pointer"
+                          >
+                            Editar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => alternarCampoServiceiro(srv, 'ativo')}
+                            className="rounded-xl border border-amber-400/30 bg-amber-500/15 px-3 py-1 font-bold text-amber-200 cursor-pointer"
+                          >
+                            {srv.ativo ? 'Ocultar' : 'Ativar'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => excluirServiceiro(srv)}
+                            className="rounded-xl border border-rose-400/30 bg-rose-500/15 px-3 py-1 font-bold text-rose-200 cursor-pointer"
+                          >
+                            Excluir
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* ================= LEADS VIP ================= */}
+              {aba === 'leads' && (
+                <div className="space-y-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="relative flex-1 min-w-[220px]">
+                      <i className="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-xs text-slate-400" />
+                      <input
+                        placeholder="Filtrar leads por WhatsApp ou e-mail..."
+                        value={buscaLeads}
+                        onChange={(e) => setBuscaLeads(e.target.value)}
+                        className="dark-input w-full rounded-2xl py-2.5 pl-9 pr-3 text-xs"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        exportarCSV(
+                          `leads-vip-milla-${new Date().toISOString().slice(0, 10)}.csv`,
+                          ['ID', 'Contato', 'Origem', 'Cupom', 'Data'],
+                          leadsFiltrados.map((l) => [
+                            l.id, l.contato, l.origem, l.cupom_liberado, l.criado_em,
+                          ])
+                        )
+                      }
+                      className="rounded-2xl border border-emerald-400/30 bg-emerald-500/10 px-4 py-2.5 text-xs font-bold text-emerald-200 cursor-pointer"
+                    >
+                      <i className="fa-solid fa-file-csv mr-1.5" />
+                      Exportar Leads CSV
+                    </button>
+                  </div>
+
+                  {leadsFiltrados.length === 0 ? (
+                    <p className="rounded-2xl border border-white/10 bg-white/[0.02] p-8 text-center text-xs text-slate-400">
+                      Nenhum lead VIP cadastrado ainda.
+                    </p>
+                  ) : (
+                    <div className="space-y-2.5">
+                      {leadsFiltrados.map((lead) => {
+                        const digitos = String(lead.contato || '').replace(/\D/g, '');
+                        const pareceTelefone = digitos.length >= 10 && !String(lead.contato).includes('@');
+                        return (
+                          <div
+                            key={lead.id}
+                            className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3.5 text-xs"
+                          >
+                            <div>
+                              <strong className="text-sm text-white">{lead.contato}</strong>
+                              <p className="text-[11px] text-slate-400">
+                                Cupom: <span className="text-amber-300 font-bold">{lead.cupom_liberado}</span> •{' '}
+                                {lead.criado_em ? new Date(lead.criado_em).toLocaleDateString('pt-BR') : ''}
+                              </p>
+                            </div>
+                            <div className="flex gap-2">
+                              <button
+                                type="button"
+                                onClick={() => copiarTexto(lead.contato, 'Contato')}
+                                className="rounded-xl border border-cyan-400/30 bg-cyan-500/15 px-3 py-1 font-bold text-cyan-200 cursor-pointer"
+                              >
+                                Copiar
+                              </button>
+                              {pareceTelefone && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const num = digitos.startsWith('55') ? digitos : `55${digitos}`;
+                                    const msg = encodeURIComponent(
+                                      `Olá! Alerta de Cotação VIP da Milla Store: temos nova cotação especial de Tibia Coins hoje! Use seu cupom MILLA5.`
+                                    );
+                                    window.open(`https://wa.me/${num}?text=${msg}`, '_blank', 'noopener,noreferrer');
+                                  }}
+                                  className="rounded-xl border border-emerald-400/30 bg-emerald-500/15 px-3 py-1 font-bold text-emerald-200 cursor-pointer"
+                                >
+                                  <i className="fa-brands fa-whatsapp mr-1" />
+                                  Enviar Alerta
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
               )}
 
               {/* ================= AVALIAÇÕES ================= */}
@@ -1352,7 +1730,7 @@ export default function AdminPanelModal({ isOpen, onClose, onNotify, onDataChang
                               <button
                                 type="button"
                                 onClick={() => alterarAprovacao(item.id, true)}
-                                className="rounded-xl border border-emerald-400/30 bg-emerald-500/15 px-3 py-1 text-xs font-bold text-emerald-300 hover:bg-emerald-500/25 cursor-pointer"
+                                className="rounded-xl border border-emerald-400/30 bg-emerald-500/15 px-3 py-1 text-xs font-bold text-emerald-300 cursor-pointer"
                               >
                                 Aprovar
                               </button>
@@ -1360,7 +1738,7 @@ export default function AdminPanelModal({ isOpen, onClose, onNotify, onDataChang
                               <button
                                 type="button"
                                 onClick={() => alterarAprovacao(item.id, false)}
-                                className="rounded-xl border border-amber-400/30 bg-amber-500/15 px-3 py-1 text-xs font-bold text-amber-300 hover:bg-amber-500/25 cursor-pointer"
+                                className="rounded-xl border border-amber-400/30 bg-amber-500/15 px-3 py-1 text-xs font-bold text-amber-300 cursor-pointer"
                               >
                                 Ocultar
                               </button>
@@ -1368,7 +1746,7 @@ export default function AdminPanelModal({ isOpen, onClose, onNotify, onDataChang
                             <button
                               type="button"
                               onClick={() => excluirAvaliacao(item.id, item.personagem)}
-                              className="rounded-xl border border-rose-400/30 bg-rose-500/15 px-3 py-1 text-xs font-bold text-rose-300 hover:bg-rose-500/25 cursor-pointer"
+                              className="rounded-xl border border-rose-400/30 bg-rose-500/15 px-3 py-1 text-xs font-bold text-rose-300 cursor-pointer"
                             >
                               Excluir
                             </button>

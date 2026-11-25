@@ -1,205 +1,136 @@
+/* ==========================================================================
+MILLA STORE — TEMA DARK FANTASY (Tailwind CSS v3)
+========================================================================== */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  --bg-deep: #07040F;
-  --purple-main: #7C3AED;
-  --purple-light: #8B5CF6;
-  --cyan-main: #06B6D4;
-  --cyan-light: #22D3EE;
+--bg-ameixa: #100919;
+--bg-ameixa-profundo: #0a0510;
+--surface-card: #190e27;
+--surface-card-alt: #23103a;
+--violeta-eletrico: #a126f5;
+--lilas-claro: #dbadff;
+--dourado: #ffbf24;
+--dourado-hover: #ffd154;
+--marfim: #fff1d5;
 }
 
-* {
-  box-sizing: border-box;
-  -webkit-tap-highlight-color: transparent;
-}
-
-html,
-body,
-#root {
-  height: 100%;
-  margin: 0;
-  padding: 0;
-  overflow: hidden;
-  overscroll-behavior: none;
-}
-
+@layer base {
 html {
-  background-color: var(--bg-deep);
+scroll-behavior: smooth;
+background-color: var(--bg-ameixa);
+color: var(--marfim);
 }
 
 body {
-  font-family: 'Outfit', system-ui, -apple-system, sans-serif;
-  font-weight: 500;
-  background: transparent;
-  color: #F3F0FF;
+margin: 0;
+min-height: 100vh;
+background-color: var(--bg-ameixa);
+color: var(--marfim);
+-webkit-font-smoothing: antialiased;
+-moz-osx-font-smoothing: grayscale;
 }
 
-/* Camadas de fundo 100% travadas */
-.bg-scene,
-.bg-custom-image,
-.bg-grid-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
+::selection {
+background-color: rgba(161, 38, 245, 0.4);
+color: var(--marfim);
+}
 }
 
-.bg-scene {
-  background:
-    radial-gradient(circle at 18% 12%, rgba(124, 58, 237, 0.28) 0%, transparent 45%),
-    radial-gradient(circle at 85% 24%, rgba(6, 182, 212, 0.20) 0%, transparent 42%),
-    radial-gradient(circle at 50% 88%, rgba(139, 92, 246, 0.18) 0%, transparent 50%),
-    linear-gradient(180deg, #07040F 0%, #0D071D 52%, #07040F 100%);
-}
+/* ==========================================================================
+COMPONENTES REUTILIZÁVEIS (COMPATÍVEIS COM OS MODAIS EXISTENTES)
+========================================================================== */
 
-.bg-custom-image {
-  background-position: center;
-  background-size: cover;
-  background-repeat: no-repeat;
-  opacity: 0.5;
-}
-
-.bg-grid-overlay {
-  background-image:
-    linear-gradient(rgba(139, 92, 246, 0.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(34, 211, 238, 0.05) 1px, transparent 1px);
-  background-size: 999px 999px;
-  mask-image: radial-gradient(circle at 50% 35%, rgba(0, 0, 0, 0.85), transparent 80%);
-}
-
-/* Glassmorphism Cards & Bordas Luminosas */
+/* Card com efeito vidro em Preto Ameixa + borda Lilás sutil */
 .glass-card {
-  background: rgba(255, 255, 255, 0.03);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
-  border: 1px solid rgba(255, 255, 255, 0.09);
-  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.06);
-  transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1),
-    border-color 0.28s ease,
-    box-shadow 0.28s ease,
-    background-color 0.28s ease;
+background: linear-gradient(
+145deg,
+rgba(35, 16, 58, 0.85) 0%,
+rgba(25, 14, 39, 0.92) 55%,
+rgba(16, 9, 25, 0.96) 100%
+);
+border: 1px solid rgba(219, 173, 255, 0.16);
+backdrop-filter: blur(16px);
+-webkit-backdrop-filter: blur(16px);
+box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
 }
 
-.glass-card:hover {
-  background: rgba(255, 255, 255, 0.055);
-  border-color: rgba(34, 211, 238, 0.38);
-  box-shadow: 0 14px 38px rgba(124, 58, 237, 0.22), 0 0 18px rgba(6, 182, 212, 0.14);
-  transform: translateY(-2px);
-}
-
-/* Avatar com Glow / Bloom Animado (118px) */
-.avatar-ring-wrap {
-  position: relative;
-  width: 126px;
-  height: 126px;
-  padding: 4px;
-  border-radius: 9999px;
-  background: linear-gradient(135deg, #7C3AED 0%, #8B5CF6 45%, #22D3EE 100%);
-  box-shadow:
-    0 0 24px rgba(124, 58, 237, 0.65),
-    0 0 48px rgba(6, 182, 212, 0.35);
-  animation: avatarBloom 4.2s ease-in-out infinite;
-}
-
-@keyframes avatarBloom {
-  0%,
-  100% {
-    box-shadow: 0 0 22px rgba(124, 58, 237, 0.62), 0 0 44px rgba(6, 182, 212, 0.32);
-  }
-  50% {
-    box-shadow: 0 0 34px rgba(139, 92, 246, 0.85), 0 0 64px rgba(34, 211, 238, 0.50);
-  }
-}
-
-/* Botão Gradiente Tecnológico (CTA) */
-.btn-tech-gradient {
-  background: linear-gradient(135deg, #7C3AED 0%, #5B21B6 25%, #06B6D4 100%);
-  background-size: 180% 180%;
-  transition: background-position 0.35s ease, transform 0.2s ease, box-shadow 0.25s ease;
-}
-
-.btn-tech-gradient:hover {
-  background-position: right center;
-  transform: translateY(-1px);
-  box-shadow: 0 10px 28px rgba(6, 182, 212, 0.38), 0 0 22px rgba(124, 58, 237, 0.42);
-}
-
-.btn-tech-gradient:active {
-  transform: scale(0.985);
-}
-
-/* Seletores do Simulador */
-.selector-pill {
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: #CBD5E1;
-  transition: all 0.22s ease;
-}
-
-.selector-pill:hover {
-  border-color: rgba(139, 92, 246, 0.5);
-  color: #FFFFFF;
-}
-
-.selector-pill.is-active {
-  background: linear-gradient(135deg, rgba(124, 58, 237, 0.34), rgba(6, 182, 212, 0.26));
-  border-color: #22D3EE;
-  color: #FFFFFF;
-  box-shadow: 0 0 20px rgba(6, 182, 212, 0.26), inset 0 1px 0 rgba(255, 255, 255, 0.18);
-}
-
-/* FAB WhatsApp com Onda Pulsante */
-.fab-pulse::before,
-.fab-pulse::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: 9999px;
-  border: 2px solid rgba(34, 211, 238, 0.65);
-  animation: fabRipple 2.4s cubic-bezier(0.2, 0.6, 0.35, 1) infinite;
-  pointer-events: none;
-}
-
-.fab-pulse::after {
-  animation-delay: 1.2s;
-  border-color: rgba(139, 92, 246, 0.65);
-}
-
-@keyframes fabRipple {
-  0% {
-    transform: scale(1);
-    opacity: 0.85;
-  }
-  100% {
-    transform: scale(1.62);
-    opacity: 0;
-  }
-}
-
-/* Inputs Dark Glass */
+/* Inputs escuros com foco Dourado */
 .dark-input {
-  background: rgba(7, 4, 15, 0.62);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  color: #FFFFFF;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+background-color: var(--bg-ameixa);
+border: 1px solid rgba(219, 173, 255, 0.22);
+color: var(--marfim);
+outline: none;
+transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .dark-input::placeholder {
-  color: rgba(203, 213, 225, 0.45);
+color: rgba(219, 173, 255, 0.45);
 }
 
 .dark-input:focus {
-  outline: none;
-  border-color: #22D3EE;
-  box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.18);
+border-color: var(--dourado);
+box-shadow: 0 0 0 3px rgba(255, 191, 36, 0.16);
 }
 
-/* Text Gradient */
-.text-tech-gradient {
-  background: linear-gradient(90deg, #C4B5FD 0%, #8B5CF6 38%, #22D3EE 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+/* Botão Principal Dourado (#FFBF24) */
+.btn-gold-primary,
+.btn-tech-gradient {
+background: linear-gradient(90deg, #ffbf24 0%, #f59e0b 100%);
+color: #100919 !important;
+font-weight: 800;
+border: 1px solid rgba(255, 209, 84, 0.6);
+transition: transform 0.15s ease, box-shadow 0.2s ease, filter 0.2s ease;
+}
+
+.btn-gold-primary:hover,
+.btn-tech-gradient:hover {
+background: linear-gradient(90deg, #ffd154 0%, #ffbf24 100%);
+box-shadow: 0 0 22px rgba(255, 191, 36, 0.38);
+}
+
+.btn-gold-primary:active,
+.btn-tech-gradient:active {
+transform: scale(0.98);
+}
+
+/* Botão Secundário com borda Dourada */
+.btn-gold-secondary {
+background-color: rgba(16, 9, 25, 0.85);
+border: 1px solid rgba(255, 191, 36, 0.5);
+color: var(--dourado);
+font-weight: 700;
+transition: all 0.2s ease;
+}
+
+.btn-gold-secondary:hover {
+background-color: var(--dourado);
+border-color: var(--dourado);
+color: #100919;
+box-shadow: 0 0 18px rgba(255, 191, 36, 0.3);
+}
+
+.btn-gold-secondary:active {
+transform: scale(0.98);
+}
+
+/* Barra de rolagem estilizada no tema Dark Fantasy */
+::-webkit-scrollbar {
+width: 8px;
+height: 8px;
+}
+
+::-webkit-scrollbar-track {
+background: #0a0510;
+}
+
+::-webkit-scrollbar-thumb {
+background: rgba(161, 38, 245, 0.35);
+border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+background: rgba(255, 191, 36, 0.55);
 }

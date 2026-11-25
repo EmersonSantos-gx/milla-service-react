@@ -109,6 +109,7 @@ export default async function handler(req, res) {
 
       if (statusMp === 'approved') {
         if (pedido.status === 'pendente') {
+          if (number(pedido.quantidade) > 0) {
           await client.query(
             `UPDATE loja_tc
              SET estoque = GREATEST(0, estoque - $1),
